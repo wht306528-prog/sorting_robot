@@ -43,6 +43,7 @@
 | --- | --- | --- |
 | `mock_matrix_publisher` | 模拟矩阵发布节点 | 不接相机，定时发布 150 个模拟穴位 |
 | `matrix_protocol_printer` | 矩阵协议打印节点 | 订阅矩阵话题并打印 F407 文本协议帧 |
+| `matrix_tcp_sender` | 矩阵 TCP 发送节点 | 订阅矩阵话题并通过 TCP 发送 F407 文本协议帧 |
 | `/sorting/tray_matrix` | 苗盘矩阵话题 | 发布 `TrayMatrix` 消息 |
 
 ## 4. 苗盘和穴位编号
@@ -140,6 +141,12 @@
 | `END` | 文本帧结束标记 | 用于调试协议 |
 | `ACK` | 确认 | F407 成功接收后可回传 |
 | `NACK` | 否认 / 接收失败 | F407 校验失败后可回传 |
+| `f407_host` | F407 主机地址参数 | `matrix_tcp_sender` 使用的目标 IP |
+| `f407_port` | F407 端口参数 | `matrix_tcp_sender` 使用的目标 TCP 端口 |
+| `send_timeout_sec` | 发送超时时间参数 | TCP 连接和发送超时时间 |
+| `tray_matrix_topic` | 苗盘矩阵话题参数 | 控制节点订阅或发布的矩阵话题名 |
+| `publish_period_sec` | 发布周期参数 | 模拟视觉节点发布周期，单位秒 |
+| `camera_frame_id` | 相机坐标系名称参数 | `TrayMatrix.header.frame_id` 使用的坐标系名 |
 
 ## 10. 命名约定
 

@@ -37,15 +37,23 @@ class MatrixProtocolPrinter(Node):
     def __init__(self) -> None:
         super().__init__('matrix_protocol_printer')
 
+        # 话题名来自 config/driver.yaml；默认值只用于没有加载配置文件的情况。
+        self.declare_parameter('tray_matrix_topic', '/sorting/tray_matrix')
+        self._topic_name = (
+            self.get_parameter('tray_matrix_topic')
+            .get_parameter_value()
+            .string_value
+        )
+
         # 订阅视觉侧输出的三苗盘矩阵。话题名统一记录在 docs/glossary.md。
         self._subscription = self.create_subscription(
             TrayMatrix,
-            '/sorting/tray_matrix',
+            self._topic_name,
             self._handle_matrix,
             10,
         )
         self.get_logger().info(
-            'Listening on /sorting/tray_matrix and printing text frames'
+            f'Listening on {self._topic_name} and printing text frames'
         )
 
     def _handle_matrix(self, message: TrayMatrix) -> None:

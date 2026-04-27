@@ -1,0 +1,10 @@
+mock_matrix_publisher:
+  ros__parameters:
+    # 模拟矩阵发布话题。后续真实视觉节点也应尽量沿用这个话题名。
+    tray_matrix_topic: /sorting/tray_matrix
+
+    # 模拟节点发布周期，单位秒。真实相机方案可能改为苗盘到位后触发发布。
+    publish_period_sec: 1.0
+
+    # 模拟数据的 header.frame_id。真实相机接入后应改为真实相机坐标系名称。
+    camera_frame_id: mock_camera

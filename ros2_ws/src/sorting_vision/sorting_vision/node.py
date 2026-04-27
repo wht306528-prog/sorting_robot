@@ -36,20 +36,42 @@ class MockMatrixPublisher(Node):
     def __init__(self) -> None:
         super().__init__('mock_matrix_publisher')
 
+        # 可变参数集中在 config/mock_vision.yaml。
+        # 这里的默认值只作为兜底，现场运行时优先使用配置文件或命令行参数。
+        self.declare_parameter('tray_matrix_topic', '/sorting/tray_matrix')
+        self.declare_parameter('publish_period_sec', 1.0)
+        self.declare_parameter('camera_frame_id', 'mock_camera')
+
+        self._topic_name = (
+            self.get_parameter('tray_matrix_topic')
+            .get_parameter_value()
+            .string_value
+        )
+        publish_period_sec = (
+            self.get_parameter('publish_period_sec')
+            .get_parameter_value()
+            .double_value
+        )
+        self._camera_frame_id = (
+            self.get_parameter('camera_frame_id')
+            .get_parameter_value()
+            .string_value
+        )
+
         # 发布完整三苗盘矩阵。话题名称写入 docs/glossary.md，后续不要随意改。
         self._publisher = self.create_publisher(
             TrayMatrix,
-            '/sorting/tray_matrix',
+            self._topic_name,
             10,
         )
 
         # frame_id 每发布一帧递增一次，方便后续排查丢帧、重复帧或乱序。
         self._frame_id = 0
 
-        # 每秒发布一次模拟矩阵。真实视觉节点后续可能改为“苗盘到位后发布一次”。
-        self._timer = self.create_timer(1.0, self._publish_matrix)
+        # 默认每秒发布一次模拟矩阵。真实视觉节点后续可能改为“苗盘到位后发布一次”。
+        self._timer = self.create_timer(publish_period_sec, self._publish_matrix)
         self.get_logger().info(
-            'Publishing mock TrayMatrix messages on /sorting/tray_matrix'
+            f'Publishing mock TrayMatrix messages on {self._topic_name}'
         )
 
     def _publish_matrix(self) -> None:
@@ -57,7 +79,7 @@ class MockMatrixPublisher(Node):
 
         message = TrayMatrix()
         message.header.stamp = self.get_clock().now().to_msg()
-        message.header.frame_id = 'mock_camera'
+        message.header.frame_id = self._camera_frame_id
         message.frame_id = self._frame_id
 
         # 行列顺序固定为：先苗盘，再行，再列。

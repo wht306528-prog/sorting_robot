@@ -137,11 +137,36 @@ ros2 topic echo /sorting/tray_matrix
 ros2 run sorting_driver matrix_protocol_printer
 ```
 
+通过 TCP 发送文本协议帧：
+
+```bash
+ros2 run sorting_driver matrix_tcp_sender
+```
+
+使用配置文件运行：
+
+```bash
+ros2 run sorting_driver matrix_tcp_sender --ros-args --params-file install/sorting_driver/share/sorting_driver/config/driver.yaml
+```
+
+指定 F407/W5500 地址：
+
+```bash
+ros2 run sorting_driver matrix_tcp_sender --ros-args -p f407_host:=192.168.1.50 -p f407_port:=9000
+```
+
+本机调试时，可以先用 `nc` 模拟 F407 接收端：
+
+```bash
+nc -l 9000
+```
+
 ## 6. 文档维护规范
 
 写代码时同步更新文档：
 
 - 改英文变量、代号、中文名称或字段含义时，更新 `docs/glossary.md`。
+- 改运行参数、IP、端口、话题名或配置文件时，更新 `docs/runtime_configuration.md`。
 - 改通信字段时，更新 `docs/communication_protocol.md`。
 - 改识别流程时，更新 `docs/vision_algorithm.md`。
 - 改坐标定义或标定参数时，更新 `docs/calibration.md`。

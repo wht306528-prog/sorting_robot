@@ -76,6 +76,8 @@ END checksum=12345
 
 当前 ROS 2 调试节点 `matrix_protocol_printer` 会订阅 `/sorting/tray_matrix`，并按上述文本格式打印完整帧。该节点暂时不连接 F407，只用于确认协议内容。
 
+`matrix_tcp_sender` 会使用同样的文本格式，通过 TCP 发送完整帧。默认连接 `127.0.0.1:9000`，现场可通过 ROS 参数改为 F407/W5500 的 IP 和端口。
+
 字段说明：
 
 - `START`：一帧开始。

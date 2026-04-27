@@ -1,0 +1,19 @@
+matrix_protocol_printer:
+  ros__parameters:
+    # 订阅的苗盘矩阵话题。
+    tray_matrix_topic: /sorting/tray_matrix
+
+matrix_tcp_sender:
+  ros__parameters:
+    # 订阅的苗盘矩阵话题。
+    tray_matrix_topic: /sorting/tray_matrix
+
+    # F407/W5500 的 TCP 服务端地址。
+    # 127.0.0.1 只用于本机 nc 调试；真机联调时必须改为 F407/W5500 的实际 IP。
+    f407_host: 127.0.0.1
+
+    # F407/W5500 的 TCP 服务端端口。需要和学长的下位机程序保持一致。
+    f407_port: 9000
+
+    # TCP 连接和发送超时时间，单位秒。
+    send_timeout_sec: 2.0
