@@ -13,9 +13,9 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='wht',
-    maintainer_email='wht@todo.todo',
-    description='TODO: Package description',
+    maintainer='HaiTao Wang',
+    maintainer_email='wht306528@gmail.com',
+    description='Vision nodes for the seedling tray sorting robot.',
     license='TODO: License declaration',
     extras_require={
         'test': [
@@ -24,6 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'mock_matrix_publisher = sorting_vision.node:main',
         ],
     },
 )

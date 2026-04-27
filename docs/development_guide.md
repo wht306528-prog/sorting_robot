@@ -99,7 +99,7 @@ colcon build
 编译完成后加载本工作区：
 
 ```bash
-source install/setup.bash
+source install/setup.sh
 ```
 
 如果只编译某一个包：
@@ -119,11 +119,17 @@ ros2 launch sorting_bringup bringup.launch.py
 在正式节点完成前，可以先分别运行单个节点进行调试。例如：
 
 ```bash
-ros2 run sorting_vision vision_node
+ros2 run sorting_vision mock_matrix_publisher
 ros2 run sorting_driver f407_sender
 ```
 
 具体节点名称以后以 `setup.py` 中的 `entry_points` 为准。
+
+查看模拟矩阵发布：
+
+```bash
+ros2 topic echo /sorting/tray_matrix
+```
 
 ## 6. 文档维护规范
 

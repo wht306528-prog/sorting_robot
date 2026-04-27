@@ -130,6 +130,12 @@ F407 侧可以参考以下控制优先级：
 | `sorting_bringup` | 一键启动各 ROS 2 节点 |
 | `sorting_description` | 机械结构描述、可视化或仿真相关内容 |
 
+当前早期联调节点：
+
+| 节点 | 话题 | 说明 |
+| --- | --- | --- |
+| `mock_matrix_publisher` | `/sorting/tray_matrix` | 发布模拟 `TrayMatrix`，用于验证消息链路 |
+
 ## 9. 当前限制和待确认问题
 
 - D435iF 的安装高度、视场范围和固定方式需要实测确认。
