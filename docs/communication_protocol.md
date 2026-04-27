@@ -54,6 +54,11 @@ TCP 的优点是可靠、有连接状态，适合先做调试。后续如果 F40
 3 个苗盘 x 50 个穴位 = 150 条记录
 ```
 
+ROS 2 内部对应消息：
+
+- `sorting_interfaces/msg/TrayCell`：单个穴位信息。
+- `sorting_interfaces/msg/TrayMatrix`：一次完整视觉识别结果，正常包含 150 个 `TrayCell`。
+
 ## 5. 推荐文本协议
 
 早期调试阶段建议先用文本协议，方便串口助手、网络调试助手和日志查看。

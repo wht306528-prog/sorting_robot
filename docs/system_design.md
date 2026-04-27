@@ -122,7 +122,7 @@ F407 侧可以参考以下控制优先级：
 | 包名 | 职责 |
 | --- | --- |
 | `sorting_vision` | 相机采集、苗盘识别、透视矫正、网格生成、ROI 分类、矩阵生成 |
-| `sorting_interfaces` | 自定义 ROS 2 消息定义，例如单穴信息和整盘矩阵 |
+| `sorting_interfaces` | 自定义 ROS 2 消息定义，例如 `TrayCell` 单穴信息和 `TrayMatrix` 三盘矩阵 |
 | `sorting_driver` | 与 F407 通信，例如 TCP 发送矩阵、接收状态 |
 | `sorting_control` | 暂时保留，用于后续需要时承载上位机控制逻辑或仿真逻辑 |
 | `sorting_bringup` | 一键启动各 ROS 2 节点 |
