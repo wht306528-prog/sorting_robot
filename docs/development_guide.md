@@ -129,6 +129,7 @@ ros2 run sorting_driver f407_sender
 
 写代码时同步更新文档：
 
+- 改英文变量、代号、中文名称或字段含义时，更新 `docs/glossary.md`。
 - 改通信字段时，更新 `docs/communication_protocol.md`。
 - 改识别流程时，更新 `docs/vision_algorithm.md`。
 - 改坐标定义或标定参数时，更新 `docs/calibration.md`。
