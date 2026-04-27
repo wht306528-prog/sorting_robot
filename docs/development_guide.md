@@ -120,6 +120,7 @@ ros2 launch sorting_bringup bringup.launch.py
 
 ```bash
 ros2 run sorting_vision mock_matrix_publisher
+ros2 run sorting_vision camera_input_probe
 ros2 run sorting_driver matrix_protocol_printer
 ```
 
@@ -129,6 +130,12 @@ ros2 run sorting_driver matrix_protocol_printer
 
 ```bash
 ros2 topic echo /sorting/tray_matrix
+```
+
+查看真实相机输入状态：
+
+```bash
+ros2 run sorting_vision camera_input_probe --ros-args --params-file install/sorting_vision/share/sorting_vision/config/mock_vision.yaml
 ```
 
 查看鲁班猫到 F407 的文本协议帧：
@@ -169,6 +176,7 @@ nc -l 9000
 - 改运行参数、IP、端口、话题名或配置文件时，更新 `docs/runtime_configuration.md`。
 - 改通信字段时，更新 `docs/communication_protocol.md`。
 - 改识别流程时，更新 `docs/vision_algorithm.md`。
+- 改硬件接入步骤时，更新 `docs/hardware_bringup.md`。
 - 改坐标定义或标定参数时，更新 `docs/calibration.md`。
 - 改系统分工或流程时，更新 `docs/system_design.md`。
 

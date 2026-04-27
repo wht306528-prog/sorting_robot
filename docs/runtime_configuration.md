@@ -84,3 +84,25 @@ ros2 run sorting_driver matrix_tcp_sender --ros-args -p f407_host:=192.168.1.50 
 - `camera_frame_id=mock_camera`。
 
 真实相机接入后，这些值应由 D435iF 图像、深度图、苗盘识别、网格映射和分类算法产生。
+
+## 4. 后续真实相机参数
+
+真实相机接入后，应新增或确认以下参数，不要散落写死在代码中：
+
+| 参数 | 说明 |
+| --- | --- |
+| `color_image_topic` | RGB 图像话题 |
+| `depth_image_topic` | 深度图话题 |
+| `color_camera_info_topic` | RGB 相机内参话题 |
+| `depth_camera_info_topic` | 深度相机内参话题 |
+| `tray_matrix_topic` | 输出苗盘矩阵话题 |
+| `leaf_area_threshold` | 叶片面积占比阈值 |
+| `empty_depth_threshold_mm` | 空穴深度判断阈值 |
+
+当前 `camera_input_probe` 已使用：
+
+```text
+color_image_topic=/camera/camera/color/image_raw
+depth_image_topic=/camera/camera/depth/image_rect_raw
+report_period_sec=2.0
+```

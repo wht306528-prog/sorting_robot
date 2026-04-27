@@ -26,6 +26,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'camera_input_probe = sorting_vision.camera_input_probe:main',
             'mock_matrix_publisher = sorting_vision.node:main',
         ],
     },
