@@ -1,0 +1,27 @@
+# ROS 2 build artifacts
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+
+# Python cache and packaging artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editor and local tool state
+.vscode/
+.idea/
+.codex
+
+# OS and temporary files
+.DS_Store
+*.swp
+*~
+
+# Large/generated runtime files
+*.bag
+*.db3
+*.log
