@@ -3,12 +3,13 @@
 <package format="3">
   <name>sorting_driver</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="wht@todo.todo">wht</maintainer>
+  <description>Driver and communication nodes for the seedling tray sorting robot.</description>
+  <maintainer email="wht306528@gmail.com">HaiTao Wang</maintainer>
   <license>TODO: License declaration</license>
 
   <depend>rclpy</depend>
   <depend>std_msgs</depend>
+  <depend>sorting_interfaces</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

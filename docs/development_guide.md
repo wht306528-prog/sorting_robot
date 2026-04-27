@@ -120,7 +120,7 @@ ros2 launch sorting_bringup bringup.launch.py
 
 ```bash
 ros2 run sorting_vision mock_matrix_publisher
-ros2 run sorting_driver f407_sender
+ros2 run sorting_driver matrix_protocol_printer
 ```
 
 具体节点名称以后以 `setup.py` 中的 `entry_points` 为准。
@@ -129,6 +129,12 @@ ros2 run sorting_driver f407_sender
 
 ```bash
 ros2 topic echo /sorting/tray_matrix
+```
+
+查看鲁班猫到 F407 的文本协议帧：
+
+```bash
+ros2 run sorting_driver matrix_protocol_printer
 ```
 
 ## 6. 文档维护规范

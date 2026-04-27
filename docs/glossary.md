@@ -42,6 +42,7 @@
 | 英文 / 代号 | 中文名称 | 说明 |
 | --- | --- | --- |
 | `mock_matrix_publisher` | 模拟矩阵发布节点 | 不接相机，定时发布 150 个模拟穴位 |
+| `matrix_protocol_printer` | 矩阵协议打印节点 | 订阅矩阵话题并打印 F407 文本协议帧 |
 | `/sorting/tray_matrix` | 苗盘矩阵话题 | 发布 `TrayMatrix` 消息 |
 
 ## 4. 苗盘和穴位编号

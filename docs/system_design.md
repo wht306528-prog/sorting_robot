@@ -135,6 +135,7 @@ F407 侧可以参考以下控制优先级：
 | 节点 | 话题 | 说明 |
 | --- | --- | --- |
 | `mock_matrix_publisher` | `/sorting/tray_matrix` | 发布模拟 `TrayMatrix`，用于验证消息链路 |
+| `matrix_protocol_printer` | `/sorting/tray_matrix` | 订阅矩阵并打印 F407 文本协议帧 |
 
 ## 9. 当前限制和待确认问题
 

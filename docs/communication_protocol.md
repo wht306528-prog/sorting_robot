@@ -74,6 +74,8 @@ START frame_id=12 count=150
 END checksum=12345
 ```
 
+当前 ROS 2 调试节点 `matrix_protocol_printer` 会订阅 `/sorting/tray_matrix`，并按上述文本格式打印完整帧。该节点暂时不连接 F407，只用于确认协议内容。
+
 字段说明：
 
 - `START`：一帧开始。
