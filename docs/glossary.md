@@ -44,6 +44,7 @@
 | `mock_matrix_publisher` | 模拟矩阵发布节点 | 不接相机，定时发布 150 个模拟穴位 |
 | `camera_input_probe` | 相机输入探测节点 | 订阅 RGB/Depth 图像并打印尺寸、编码和接收频率 |
 | `camera_info_probe` | 相机内参探测节点 | 订阅 RGB/Depth CameraInfo 并打印 fx/fy/cx/cy |
+| `real_matrix_publisher` | 真实相机矩阵发布节点 | 订阅 RGB-D 图像，按临时 ROI 和规则网格发布 `TrayMatrix` |
 | `CameraIntrinsics` | 相机内参结构 | 代码中统一保存 width/height/fx/fy/cx/cy 等字段 |
 | `CameraIntrinsicsCache` | 相机内参缓存 | 后续真实视觉节点用于缓存 RGB 和 Depth 两路内参 |
 | `matrix_protocol_printer` | 矩阵协议打印节点 | 订阅矩阵话题并打印 F407 文本协议帧 |
@@ -160,6 +161,14 @@
 | `color_camera_info_topic` | RGB 相机内参话题参数 | `camera_info_probe` 订阅的 RGB CameraInfo 话题 |
 | `depth_camera_info_topic` | 深度相机内参话题参数 | `camera_info_probe` 订阅的 Depth CameraInfo 话题 |
 | `report_period_sec` | 状态打印周期参数 | `camera_input_probe` 打印状态的周期 |
+| `tray_1_roi` | 1 号苗盘图像区域参数 | 临时真实视觉节点使用，格式 `[x, y, width, height]`，单位 pixel |
+| `tray_2_roi` | 2 号苗盘图像区域参数 | 临时真实视觉节点使用，格式 `[x, y, width, height]`，单位 pixel |
+| `tray_3_roi` | 3 号苗盘图像区域参数 | 临时真实视觉节点使用，格式 `[x, y, width, height]`，单位 pixel |
+| `leaf_area_ratio_threshold` | 叶片面积占比阈值 | 早期规则分类中，大于等于该值暂判为 1 类 |
+| `weak_area_ratio_threshold` | 弱苗面积占比阈值 | 早期规则分类中，介于该值和好苗阈值之间暂判为 2 类 |
+| `depth_window_px` | 深度采样窗口参数 | 中心点附近取中位数的窗口大小，单位 pixel |
+| `roi_inner_scale` | 单穴 ROI 内缩比例 | 颜色统计只取单穴中心区域，减少相邻穴位干扰 |
+| `color_sample_step_px` | 颜色采样步长 | 早期规则分类中的像素采样间隔 |
 
 ## 10. 命名约定
 

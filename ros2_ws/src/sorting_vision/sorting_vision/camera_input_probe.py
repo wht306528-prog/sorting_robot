@@ -15,7 +15,8 @@
 - 它只负责确认项目自己的 ROS 2 Python 代码能收到真实相机数据。
 
 运行方式：
-    ros2 run sorting_vision camera_input_probe --ros-args --params-file install/sorting_vision/share/sorting_vision/config/mock_vision.yaml
+    ros2 run sorting_vision camera_input_probe --ros-args \
+        --params-file install/sorting_vision/share/sorting_vision/config/mock_vision.yaml
 """
 
 from __future__ import annotations

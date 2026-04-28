@@ -14,7 +14,8 @@
 - 相机到机械臂基座的 R/T 不是相机内参，后续仍然需要现场手眼标定。
 
 运行方式：
-    ros2 run sorting_vision camera_info_probe --ros-args --params-file install/sorting_vision/share/sorting_vision/config/mock_vision.yaml
+    ros2 run sorting_vision camera_info_probe --ros-args \
+        --params-file install/sorting_vision/share/sorting_vision/config/mock_vision.yaml
 """
 
 from __future__ import annotations

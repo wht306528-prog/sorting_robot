@@ -99,6 +99,16 @@ ros2 run sorting_driver matrix_tcp_sender --ros-args -p f407_host:=192.168.1.50 
 | `leaf_area_threshold` | 叶片面积占比阈值 |
 | `empty_depth_threshold_mm` | 空穴深度判断阈值 |
 
+当前已经加入第一版真实相机矩阵节点：
+
+```text
+real_matrix_publisher
+```
+
+它订阅 RGB-D 图像和 CameraInfo，使用临时配置的三个苗盘 ROI 生成 `5 x 10`
+规则网格，并发布完整 `TrayMatrix`。当前分类规则是早期联调用的绿色面积占比
+阈值，不代表最终苗盘识别算法。
+
 当前 `camera_input_probe` 已使用：
 
 ```text
@@ -119,4 +129,30 @@ depth_camera_info_topic=/camera/camera/depth/camera_info
 ```text
 fx/fy/cx/cy 不写死在算法代码中。
 真实视觉节点应从 CameraInfo 读取，并通过 CameraIntrinsicsCache 缓存。
+```
+
+`real_matrix_publisher` 当前使用：
+
+| 参数 | 当前默认值 | 真机注意事项 |
+| --- | --- | --- |
+| `tray_matrix_topic` | `/sorting/tray_matrix` | 必须和 driver 节点订阅话题一致 |
+| `publish_period_sec` | `1.0` | 后续建议改为苗盘到位后触发 |
+| `camera_frame_id` | 空字符串 | 留空时使用 RGB 图像 `frame_id` |
+| `color_image_topic` | `/camera/camera/color/image_raw` | 以现场 `ros2 topic list` 为准 |
+| `depth_image_topic` | `/camera/camera/depth/image_rect_raw` | 最好使用对齐到 RGB 的深度话题 |
+| `color_camera_info_topic` | `/camera/camera/color/camera_info` | 与 RGB 图像配置匹配 |
+| `depth_camera_info_topic` | `/camera/camera/depth/camera_info` | 与深度图配置匹配 |
+| `tray_1_roi` | `[20.0, 50.0, 185.0, 380.0]` | 1 号苗盘 ROI，格式 `[x, y, width, height]` |
+| `tray_2_roi` | `[227.5, 50.0, 185.0, 380.0]` | 2 号苗盘 ROI，现场必须标定 |
+| `tray_3_roi` | `[435.0, 50.0, 185.0, 380.0]` | 3 号苗盘 ROI，现场必须标定 |
+| `leaf_area_ratio_threshold` | `0.20` | 大于等于该绿色面积占比暂判为 1 类 |
+| `weak_area_ratio_threshold` | `0.03` | 介于弱苗和好苗阈值之间暂判为 2 类 |
+| `depth_window_px` | `5` | 中心深度中位数采样窗口 |
+| `roi_inner_scale` | `0.65` | 只取单穴中心区域做颜色统计，避免串格 |
+| `color_sample_step_px` | `2` | 颜色采样步长，越小越细但 CPU 占用更高 |
+
+运行示例：
+
+```bash
+ros2 run sorting_vision real_matrix_publisher --ros-args --params-file install/sorting_vision/share/sorting_vision/config/mock_vision.yaml
 ```

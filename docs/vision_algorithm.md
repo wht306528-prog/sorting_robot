@@ -29,6 +29,12 @@ tray_id, col, row, class_id, confidence, u, v, z
 7. 使用深度和图像特征判断类别。
 8. 生成矩阵并发送给 F407。
 
+当前代码中的第一版真实相机节点是 `real_matrix_publisher`。它先跳过自动
+苗盘外框识别，使用配置文件里的 `tray_1_roi`、`tray_2_roi`、`tray_3_roi`
+作为三个苗盘矩形区域，再按 `5 x 10` 规则网格生成 150 个穴位中心点。
+这样可以先验证相机、网格编号、深度采样和通信链路；后续外框识别稳定后，
+再替换 ROI 来源。
+
 ## 3. 苗盘外框识别
 
 苗盘外框可以先采用传统图像方法：
@@ -100,6 +106,14 @@ leaf_area_ratio_threshold = 0.20
 ```
 
 这个阈值需要通过真实样本调试。
+
+`real_matrix_publisher` 当前使用绿色面积占比作为临时规则：
+
+- `green_ratio >= leaf_area_ratio_threshold`：暂判为 1 类。
+- `weak_area_ratio_threshold <= green_ratio < leaf_area_ratio_threshold`：暂判为 2 类。
+- `green_ratio < weak_area_ratio_threshold`：暂判为 0 类。
+
+该规则主要服务早期联调和小球/绿叶显著样本测试，不是最终分类算法。
 
 ## 8. 前期小球替代实验
 

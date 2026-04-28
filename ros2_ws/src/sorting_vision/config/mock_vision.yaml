@@ -27,3 +27,33 @@ camera_info_probe:
 
     # RealSense ROS 2 默认深度相机内参话题。实际话题名以 ros2 topic list 为准。
     depth_camera_info_topic: /camera/camera/depth/camera_info
+
+real_matrix_publisher:
+  ros__parameters:
+    # 输出苗盘矩阵话题，后续 driver 节点订阅这个话题。
+    tray_matrix_topic: /sorting/tray_matrix
+
+    # 当前早期规则节点定时发布。真机流程稳定后可改为苗盘到位触发。
+    publish_period_sec: 1.0
+
+    # 留空时使用 RGB 图像 frame_id。
+    camera_frame_id: ''
+
+    # RealSense 图像与内参话题。深度最好使用已对齐到 RGB 的话题。
+    color_image_topic: /camera/camera/color/image_raw
+    depth_image_topic: /camera/camera/depth/image_rect_raw
+    color_camera_info_topic: /camera/camera/color/camera_info
+    depth_camera_info_topic: /camera/camera/depth/camera_info
+
+    # 三个苗盘在图像中的临时 ROI，格式为 [x, y, width, height]，单位 pixel。
+    # 这些默认值只用于 640x480 画面上的初步联调，现场需要按相机安装位置修改。
+    tray_1_roi: [20.0, 50.0, 185.0, 380.0]
+    tray_2_roi: [227.5, 50.0, 185.0, 380.0]
+    tray_3_roi: [435.0, 50.0, 185.0, 380.0]
+
+    # 早期规则分类参数。leaf 阈值来自 docs/vision_algorithm.md 的初始建议。
+    leaf_area_ratio_threshold: 0.20
+    weak_area_ratio_threshold: 0.03
+    depth_window_px: 5
+    roi_inner_scale: 0.65
+    color_sample_step_px: 2
