@@ -143,6 +143,8 @@ ros2 topic info /camera/depth/image_rect_raw
 | 深度图频率 | VMware 中实测约 10-11Hz，低于相机配置 30FPS |
 | 低分辨率 RGB 图像频率 | 项目节点实测约 14.3Hz |
 | 低分辨率深度图频率 | 项目节点实测约 14.3Hz |
+| RGB CameraInfo | 已确认，`1280x720`，`fx=912.534119`，`fy=911.830383`，`cx=645.348755`，`cy=370.139221` |
+| Depth CameraInfo | 已确认，`848x480`，`fx=429.752228`，`fy=429.752228`，`cx=417.643738`，`cy=243.390274` |
 | 相机视野能覆盖三个苗盘 | 待确认 |
 | 相机固定方式稳定 | 待确认 |
 | 光照环境稳定 | 待确认 |
@@ -183,6 +185,31 @@ camera_matrix_publisher
 - 不输出矩阵。
 
 确认图像输入稳定后，再继续实现苗盘外框识别、透视矫正和 5x10 网格生成。
+
+## 10. 相机内参检查
+
+D435iF 的 ROS 2 驱动会发布 CameraInfo，项目中已提供探测节点：
+
+```text
+camera_info_probe
+```
+
+运行方式：
+
+```bash
+ros2 run sorting_vision camera_info_probe --ros-args --params-file install/sorting_vision/share/sorting_vision/config/mock_vision.yaml
+```
+
+该节点会打印：
+
+- 图像宽高。
+- `fx`、`fy`、`cx`、`cy`。
+- 畸变模型。
+- `D` 畸变参数。
+- `K` 内参矩阵。
+- `P` 投影矩阵。
+
+这些参数来自 D435iF 驱动发布的相机内参，不等于相机到机械臂基座的手眼标定参数。
 
 当前已实现的第一版节点名为：
 

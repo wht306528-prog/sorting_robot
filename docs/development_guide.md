@@ -121,6 +121,7 @@ ros2 launch sorting_bringup bringup.launch.py
 ```bash
 ros2 run sorting_vision mock_matrix_publisher
 ros2 run sorting_vision camera_input_probe
+ros2 run sorting_vision camera_info_probe
 ros2 run sorting_driver matrix_protocol_printer
 ```
 
@@ -136,6 +137,12 @@ ros2 topic echo /sorting/tray_matrix
 
 ```bash
 ros2 run sorting_vision camera_input_probe --ros-args --params-file install/sorting_vision/share/sorting_vision/config/mock_vision.yaml
+```
+
+查看 RealSense 相机内参：
+
+```bash
+ros2 run sorting_vision camera_info_probe --ros-args --params-file install/sorting_vision/share/sorting_vision/config/mock_vision.yaml
 ```
 
 查看鲁班猫到 F407 的文本协议帧：

@@ -43,11 +43,14 @@
 | --- | --- | --- |
 | `mock_matrix_publisher` | 模拟矩阵发布节点 | 不接相机，定时发布 150 个模拟穴位 |
 | `camera_input_probe` | 相机输入探测节点 | 订阅 RGB/Depth 图像并打印尺寸、编码和接收频率 |
+| `camera_info_probe` | 相机内参探测节点 | 订阅 RGB/Depth CameraInfo 并打印 fx/fy/cx/cy |
 | `matrix_protocol_printer` | 矩阵协议打印节点 | 订阅矩阵话题并打印 F407 文本协议帧 |
 | `matrix_tcp_sender` | 矩阵 TCP 发送节点 | 订阅矩阵话题并通过 TCP 发送 F407 文本协议帧 |
 | `/sorting/tray_matrix` | 苗盘矩阵话题 | 发布 `TrayMatrix` 消息 |
 | `/camera/camera/color/image_raw` | RealSense RGB 图像话题 | 当前 VMware 测试中检测到的话题名 |
 | `/camera/camera/depth/image_rect_raw` | RealSense 深度图话题 | 当前 VMware 测试中检测到的话题名 |
+| `/camera/camera/color/camera_info` | RealSense RGB 相机内参话题 | 当前 VMware 测试中检测到的话题名 |
+| `/camera/camera/depth/camera_info` | RealSense 深度相机内参话题 | 当前 VMware 测试中检测到的话题名 |
 
 ## 4. 苗盘和穴位编号
 
@@ -152,6 +155,8 @@
 | `camera_frame_id` | 相机坐标系名称参数 | `TrayMatrix.header.frame_id` 使用的坐标系名 |
 | `color_image_topic` | RGB 图像话题参数 | `camera_input_probe` 订阅的 RGB 图像话题 |
 | `depth_image_topic` | 深度图话题参数 | `camera_input_probe` 订阅的深度图话题 |
+| `color_camera_info_topic` | RGB 相机内参话题参数 | `camera_info_probe` 订阅的 RGB CameraInfo 话题 |
+| `depth_camera_info_topic` | 深度相机内参话题参数 | `camera_info_probe` 订阅的 Depth CameraInfo 话题 |
 | `report_period_sec` | 状态打印周期参数 | `camera_input_probe` 打印状态的周期 |
 
 ## 10. 命名约定

@@ -106,3 +106,10 @@ color_image_topic=/camera/camera/color/image_raw
 depth_image_topic=/camera/camera/depth/image_rect_raw
 report_period_sec=2.0
 ```
+
+当前 `camera_info_probe` 已使用：
+
+```text
+color_camera_info_topic=/camera/camera/color/camera_info
+depth_camera_info_topic=/camera/camera/depth/camera_info
+```
