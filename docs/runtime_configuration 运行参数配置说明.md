@@ -197,3 +197,59 @@ ros2 run sorting_vision grid_debug_publisher --ros-args \
 ```bash
 rqt_image_view /sorting/debug/grid_image
 ```
+
+## 6. 离线苗盘样本调试配置
+
+配置文件：
+
+```text
+ros2_ws/src/sorting_vision/config/offline_tray_debug.yaml
+```
+
+命令：
+
+```text
+offline_tray_debug
+```
+
+作用：
+
+- 从磁盘读取一张样本图片。
+- 优先使用配置文件中的四角点。
+- 如果配置文件没有四角点，则尝试自动检测矩形苗盘候选。
+- 对每个苗盘做透视矫正。
+- 在矫正图和原图反投影上绘制 `5 x 10` 网格。
+- 输出调试图片到 `samples/debug/` 或命令行指定目录。
+
+参数：
+
+| 参数 | 当前默认值 | 说明 |
+| --- | --- | --- |
+| `warped_width_px` | `500` | 单个苗盘透视矫正后的宽度 |
+| `warped_height_px` | `1000` | 单个苗盘透视矫正后的高度 |
+| `line_width_px` | `2` | 调试图片中的线宽 |
+| `center_radius_px` | `4` | 穴位中心十字大小 |
+| `auto_detect` | `true` | 没有手工四角点时是否尝试自动检测 |
+| `max_auto_trays` | `3` | 自动检测最多保留几个苗盘候选 |
+| `min_area_ratio` | `0.02` | 自动候选最小面积占整图比例 |
+| `dark_pixel_threshold` | `75` | 深色苗盘分割阈值，灰度小于该值认为偏暗 |
+| `column_active_ratio` | `0.12` | 每列暗像素超过图像高度的该比例时认为该列可能属于苗盘 |
+| `projection_smooth_px` | `31` | 横向投影平滑窗口，用于减少孔洞和噪声影响 |
+| `x_range_padding_px` | `8` | 自动分割出的苗盘横向范围扩展像素 |
+| `merge_kernel_px` | `23` | 合并单个苗盘内部孔洞的形态学核尺寸 |
+| `trays` | `[]` | 可选手工四角点，顺序为左上、右上、右下、左下 |
+
+运行示例：
+
+```bash
+ros2 run sorting_vision offline_tray_debug -- \
+  --image samples/raw/example.jpg \
+  --config src/sorting_vision/config/offline_tray_debug.yaml \
+  --output-dir samples/debug
+```
+
+说明：
+
+- 这个脚本是当前视觉主线，用于图片样本上的外框检测、透视矫正和网格生成。
+- 配置四角点是过渡方案，不是最终长期依赖。
+- 固定 ROI 实时节点只作为演示和调试辅助。

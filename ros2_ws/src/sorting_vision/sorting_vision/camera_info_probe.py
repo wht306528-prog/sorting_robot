@@ -70,8 +70,8 @@ class CameraInfoProbe(Node):
             10,
         )
 
-        self.get_logger().info(f'Listening color camera info: {self._color_topic}')
-        self.get_logger().info(f'Listening depth camera info: {self._depth_topic}')
+        self.get_logger().info(f'正在订阅 RGB 相机内参：{self._color_topic}')
+        self.get_logger().info(f'正在订阅深度相机内参：{self._depth_topic}')
 
     def _handle_color_info(self, message: CameraInfo) -> None:
         """打印 RGB 相机内参。"""
@@ -79,7 +79,7 @@ class CameraInfoProbe(Node):
         if self._printed_color:
             return
         intrinsics = self._intrinsics.update_color(message)
-        self._print_camera_info('color', intrinsics)
+        self._print_camera_info('RGB', intrinsics)
         self._printed_color = True
         self._try_shutdown_after_print()
 
@@ -89,7 +89,7 @@ class CameraInfoProbe(Node):
         if self._printed_depth:
             return
         intrinsics = self._intrinsics.update_depth(message)
-        self._print_camera_info('depth', intrinsics)
+        self._print_camera_info('深度', intrinsics)
         self._printed_depth = True
         self._try_shutdown_after_print()
 
@@ -116,7 +116,7 @@ class CameraInfoProbe(Node):
 
         if self._printed_color and self._printed_depth:
             self.get_logger().info(
-                'Color and depth camera info received. Press Ctrl+C to exit.'
+                'RGB 和深度相机内参都已收到。需要结束时请按 Ctrl+C。'
             )
 
 

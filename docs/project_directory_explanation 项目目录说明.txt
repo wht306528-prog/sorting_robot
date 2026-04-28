@@ -45,6 +45,9 @@ docs/glossary 术语对照表.md
 docs/hardware_bringup 硬件启动说明.md
   记录硬件接入、相机启动、设备识别、现场启动步骤等内容。
 
+docs/sample_collection 样本采集说明.md
+  记录离线视觉算法调试的样本图片采集方法、命名规则和注意事项。
+
 docs/runtime_configuration 运行参数配置说明.md
   记录运行时可修改参数，例如相机话题、F407 IP、ROI、阈值等。
 
@@ -141,6 +144,7 @@ ros2_ws/src/sorting_vision/setup.py
     camera_info_probe
     grid_debug_publisher
     real_matrix_publisher
+    offline_tray_debug
 
 ros2_ws/src/sorting_vision/setup.cfg
   Python 节点安装路径配置。
@@ -151,6 +155,10 @@ ros2_ws/src/sorting_vision/resource/sorting_vision
 ros2_ws/src/sorting_vision/config/mock_vision.yaml
   视觉侧配置文件。
   包含模拟节点参数、相机话题、CameraInfo 话题、三个苗盘 ROI、分类阈值等。
+
+ros2_ws/src/sorting_vision/config/offline_tray_debug.yaml
+  离线苗盘样本调试配置。
+  包含透视矫正输出尺寸、自动检测参数和可选手工四角点。
 
 ros2_ws/src/sorting_vision/sorting_vision/__init__.py
   Python 包初始化文件。
@@ -189,6 +197,10 @@ ros2_ws/src/sorting_vision/sorting_vision/grid_debug_publisher.py
 ros2_ws/src/sorting_vision/sorting_vision/real_matrix_publisher.py
   real_matrix_publisher 节点源码。
   订阅真实/普通相机图像，生成 150 格 TrayMatrix 并发布到 /sorting/tray_matrix。
+
+ros2_ws/src/sorting_vision/sorting_vision/offline_tray_debug.py
+  offline_tray_debug 离线样本调试脚本。
+  从磁盘读取样本图片，自动检测或读取苗盘四角点，输出透视矫正图和 5x10 网格图。
 
 ros2_ws/src/sorting_vision/test/test_detector.py
   detector.py 的单元测试。
@@ -364,6 +376,9 @@ ros2_ws/src/sorting_description/CMakeLists.txt
 
 运行 ROI 网格调试图像发布：
   ros2 run sorting_vision grid_debug_publisher --ros-args -p color_image_topic:=/image
+
+运行离线苗盘样本调试：
+  ros2 run sorting_vision offline_tray_debug -- --image samples/raw/example.jpg
 
 查看 ROI 网格调试图像：
   rqt_image_view /sorting/debug/grid_image

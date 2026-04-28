@@ -17,7 +17,7 @@ setup(
     zip_safe=True,
     maintainer='HaiTao Wang',
     maintainer_email='wht306528@gmail.com',
-    description='Vision nodes for the seedling tray sorting robot.',
+    description='苗盘分拣机器人视觉节点。',
     license='TODO: License declaration',
     extras_require={
         'test': [
@@ -30,6 +30,7 @@ setup(
             'camera_input_probe = sorting_vision.camera_input_probe:main',
             'grid_debug_publisher = sorting_vision.grid_debug_publisher:main',
             'mock_matrix_publisher = sorting_vision.node:main',
+            'offline_tray_debug = sorting_vision.offline_tray_debug:main',
             'real_matrix_publisher = sorting_vision.real_matrix_publisher:main',
         ],
     },

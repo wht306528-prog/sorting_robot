@@ -1,0 +1,41 @@
+# 离线苗盘几何调试配置。
+#
+# 本文件用于“样本图片离线调试”，不是长期固定 ROI 方案。
+# 如果自动检测一开始不稳定，可以先手动填写 corners，
+# 用来验证透视矫正和 5x10 网格生成流程。
+
+offline_tray_debug:
+  # 单个苗盘透视矫正后的输出尺寸。
+  warped_width_px: 500
+  warped_height_px: 1000
+
+  # 调试图片绘制参数。
+  line_width_px: 2
+  center_radius_px: 4
+
+  # 自动矩形候选检测参数。
+  auto_detect: true
+  max_auto_trays: 3
+  min_area_ratio: 0.02
+
+  # 深色苗盘横向投影检测参数。
+  # 当前样本是浅色地面上的深色塑料苗盘，所以先按暗像素列分割苗盘候选。
+  dark_pixel_threshold: 75
+  column_active_ratio: 0.12
+  projection_smooth_px: 31
+  x_range_padding_px: 8
+  merge_kernel_px: 23
+
+  # 可选手工四角点。角点顺序：
+  # 左上、右上、右下、左下。
+  # 留空时使用自动检测。
+  trays: []
+
+  # 示例：
+  # trays:
+  #   - tray_id: 1
+  #     corners:
+  #       - [120, 80]
+  #       - [430, 76]
+  #       - [445, 690]
+  #       - [105, 700]

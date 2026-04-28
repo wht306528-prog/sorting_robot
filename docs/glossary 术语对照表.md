@@ -46,6 +46,7 @@
 | `camera_info_probe` | 相机内参探测节点 | 订阅 RGB/Depth CameraInfo 并打印 fx/fy/cx/cy |
 | `real_matrix_publisher` | 真实相机矩阵发布节点 | 订阅 RGB-D 图像，按临时 ROI 和规则网格发布 `TrayMatrix` |
 | `grid_debug_publisher` | 网格调试图像发布节点 | 订阅 RGB 图像，绘制三苗盘 ROI、网格线和穴位中心点 |
+| `offline_tray_debug` | 离线苗盘调试脚本 | 读取样本图片，检测或读取苗盘四角点，输出透视矫正和网格调试图片 |
 | `CameraIntrinsics` | 相机内参结构 | 代码中统一保存 width/height/fx/fy/cx/cy 等字段 |
 | `CameraIntrinsicsCache` | 相机内参缓存 | 后续真实视觉节点用于缓存 RGB 和 Depth 两路内参 |
 | `matrix_protocol_printer` | 矩阵协议打印节点 | 订阅矩阵话题并打印 F407 文本协议帧 |

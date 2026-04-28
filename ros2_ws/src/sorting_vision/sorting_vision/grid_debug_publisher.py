@@ -1,9 +1,9 @@
 """
-Publish a camera image with configured tray ROI grids drawn on top.
+发布带有苗盘 ROI 网格的调试图像。
 
-This node is a small visual debugging tool for tuning tray_1_roi,
-tray_2_roi, and tray_3_roi. It does not classify seedlings and does not
-publish TrayMatrix; it only makes the configured grid visible in image tools.
+本节点是一个可视化调试工具，用于临时查看 tray_1_roi、tray_2_roi、
+tray_3_roi 的位置。它不做苗盘分类，也不发布 TrayMatrix，只负责把固定
+ROI 网格画到图像上，方便现场观察。
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from sorting_vision.detector import TRAY_COLS, TRAY_ROWS, TrayRoi
 
 
 class GridDebugPublisher(Node):
-    """Draw configured tray rectangles and 5x10 grids on incoming images."""
+    """在输入图像上绘制配置好的苗盘矩形和 5x10 网格。"""
 
     def __init__(self) -> None:
         super().__init__('grid_debug_publisher')
@@ -48,12 +48,12 @@ class GridDebugPublisher(Node):
             qos_profile_sensor_data,
         )
 
-        self.get_logger().info(f'Listening color image: {self._color_topic}')
-        self.get_logger().info(f'Publishing grid debug image: {self._debug_topic}')
-        self.get_logger().info(f'Configured tray ROIs: {self._tray_rois}')
+        self.get_logger().info(f'正在订阅 RGB 图像：{self._color_topic}')
+        self.get_logger().info(f'正在发布网格调试图像：{self._debug_topic}')
+        self.get_logger().info(f'当前配置的苗盘 ROI：{self._tray_rois}')
 
     def _declare_parameters(self) -> None:
-        """Declare ROS parameters used by the node."""
+        """声明本节点使用的 ROS 参数。"""
         self.declare_parameter('color_image_topic', '/camera/camera/color/image_raw')
         self.declare_parameter('debug_image_topic', '/sorting/debug/grid_image')
         self.declare_parameter('tray_1_roi', [20.0, 50.0, 185.0, 380.0])
@@ -63,12 +63,12 @@ class GridDebugPublisher(Node):
         self.declare_parameter('debug_center_radius_px', 3)
 
     def _handle_image(self, message: Image) -> None:
-        """Draw configured tray grids and publish the annotated image."""
+        """绘制配置好的苗盘网格并发布标注图像。"""
         channels = _channel_offsets(message.encoding)
         if channels is None:
             if not self._warned_encoding:
                 self.get_logger().warning(
-                    f'Unsupported image encoding for grid debug: {message.encoding}'
+                    f'网格调试图像暂不支持该编码：{message.encoding}'
                 )
                 self._warned_encoding = True
             return
@@ -99,10 +99,10 @@ class GridDebugPublisher(Node):
         self._publisher.publish(output)
 
     def _roi_parameter(self, tray_id: int) -> TrayRoi:
-        """Read one tray ROI parameter in x, y, width, height order."""
+        """按 x、y、width、height 顺序读取一个苗盘 ROI 参数。"""
         values = list(self.get_parameter(f'tray_{tray_id}_roi').value)
         if len(values) != 4:
-            raise ValueError(f'tray_{tray_id}_roi must contain 4 values')
+            raise ValueError(f'tray_{tray_id}_roi 必须包含 4 个数值')
         return TrayRoi(
             tray_id=tray_id,
             x=float(values[0]),
@@ -112,12 +112,12 @@ class GridDebugPublisher(Node):
         )
 
     def _string_parameter(self, name: str, default: str) -> str:
-        """Read a string parameter."""
+        """读取字符串参数。"""
         value = self.get_parameter(name).value
         return str(value) if value is not None else default
 
     def _int_parameter(self, name: str, default: int) -> int:
-        """Read an integer parameter."""
+        """读取整数参数。"""
         value = self.get_parameter(name).value
         return int(value) if value is not None else default
 
@@ -133,7 +133,7 @@ def _draw_tray_grid(
     line_width: int,
     center_radius: int,
 ) -> None:
-    """Draw one tray ROI rectangle, grid lines, and cell centers."""
+    """绘制一个苗盘 ROI 外框、网格线和穴位中心点。"""
     left = int(round(roi.x))
     top = int(round(roi.y))
     right = int(round(roi.x + roi.width))
@@ -198,7 +198,7 @@ def _draw_rectangle(
     color: tuple[int, int, int],
     line_width: int,
 ) -> None:
-    """Draw a rectangle border."""
+    """绘制矩形边框。"""
     _draw_line(
         pixels, image_width, image_height, step, channels,
         left, top, right, top, color, line_width,
@@ -228,7 +228,7 @@ def _draw_cross(
     radius: int,
     color: tuple[int, int, int],
 ) -> None:
-    """Draw a small cross at one cell center."""
+    """在一个穴位中心绘制小十字。"""
     _draw_line(
         pixels, image_width, image_height, step, channels,
         center_x - radius, center_y, center_x + radius, center_y, color, 1,
@@ -252,7 +252,7 @@ def _draw_line(
     color: tuple[int, int, int],
     line_width: int,
 ) -> None:
-    """Draw a horizontal or vertical line."""
+    """绘制水平线或垂直线。"""
     if x1 == x2:
         start_y, end_y = sorted((y1, y2))
         for delta in range(-(line_width // 2), line_width // 2 + 1):
@@ -283,7 +283,7 @@ def _set_pixel(
     y: int,
     color: tuple[int, int, int],
 ) -> None:
-    """Set one pixel while respecting image bounds and channel order."""
+    """在检查边界和通道顺序后设置一个像素。"""
     if x < 0 or x >= image_width or y < 0 or y >= image_height:
         return
     red_index, green_index, blue_index, bytes_per_pixel = channels
@@ -297,7 +297,7 @@ def _set_pixel(
 
 
 def _channel_offsets(encoding: str) -> tuple[int, int, int, int] | None:
-    """Return RGB channel offsets for common color image encodings."""
+    """返回常见彩色图像编码中的 RGB 通道偏移。"""
     normalized = encoding.lower()
     if normalized == 'rgb8':
         return 0, 1, 2, 3
@@ -311,7 +311,7 @@ def _channel_offsets(encoding: str) -> tuple[int, int, int, int] | None:
 
 
 def _tray_colors() -> list[tuple[int, int, int]]:
-    """Return distinct RGB colors for tray 1, tray 2, and tray 3."""
+    """返回 1、2、3 号苗盘使用的不同 RGB 颜色。"""
     return [
         (255, 40, 40),
         (40, 220, 80),
@@ -320,7 +320,7 @@ def _tray_colors() -> list[tuple[int, int, int]]:
 
 
 def main(args: list[str] | None = None) -> None:
-    """ROS 2 node entry point."""
+    """ROS 2 节点入口。"""
     rclpy.init(args=args)
     node = GridDebugPublisher()
     try:

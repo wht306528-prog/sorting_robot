@@ -71,7 +71,7 @@ class MockMatrixPublisher(Node):
         # 默认每秒发布一次模拟矩阵。真实视觉节点后续可能改为“苗盘到位后发布一次”。
         self._timer = self.create_timer(publish_period_sec, self._publish_matrix)
         self.get_logger().info(
-            f'Publishing mock TrayMatrix messages on {self._topic_name}'
+            f'正在发布模拟 TrayMatrix：{self._topic_name}'
         )
 
     def _publish_matrix(self) -> None:
@@ -93,7 +93,7 @@ class MockMatrixPublisher(Node):
 
         self._publisher.publish(message)
         self.get_logger().info(
-            f'Published frame_id={message.frame_id} cells={len(message.cells)}'
+            f'已发布 frame_id={message.frame_id} cells={len(message.cells)}'
         )
         self._frame_id += 1
 

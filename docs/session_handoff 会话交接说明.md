@@ -81,6 +81,7 @@ camera_input_probe
 camera_info_probe
 real_matrix_publisher
 grid_debug_publisher
+offline_tray_debug
 ```
 
 说明：
@@ -90,6 +91,7 @@ grid_debug_publisher
 - `camera_info_probe`：订阅 RealSense CameraInfo，打印 `fx/fy/cx/cy`、K、P、D。
 - `real_matrix_publisher`：订阅 RGB-D 图像，使用临时三苗盘 ROI 和 `5 x 10` 规则网格发布真实相机链路的 `TrayMatrix`。
 - `grid_debug_publisher`：订阅 RGB 图像，发布画有三苗盘 ROI、网格线和穴位中心点的调试图像。
+- `offline_tray_debug`：读取样本图片，检测或读取苗盘四角点，输出透视矫正和 `5 x 10` 网格调试图片。
 
 已完成驱动侧节点：
 
@@ -233,6 +235,18 @@ debug_image_topic
 debug_line_width_px
 debug_center_radius_px
 ```
+
+离线样本调试配置：
+
+```text
+ros2_ws/src/sorting_vision/config/offline_tray_debug.yaml
+```
+
+说明：
+
+- 当前视觉主线优先走离线样本图片调试。
+- 固定 ROI 实时节点只作为调试和演示辅助。
+- `offline_tray_debug` 第一版允许手工四角点作为过渡，但最终目标是自动检测苗盘外框。
 
 驱动配置：
 

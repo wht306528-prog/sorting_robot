@@ -93,8 +93,8 @@ class CameraInputProbe(Node):
         )
         self._timer = self.create_timer(report_period_sec, self._report)
 
-        self.get_logger().info(f'Listening color image: {self._color_topic}')
-        self.get_logger().info(f'Listening depth image: {self._depth_topic}')
+        self.get_logger().info(f'正在订阅 RGB 图像：{self._color_topic}')
+        self.get_logger().info(f'正在订阅深度图像：{self._depth_topic}')
 
     def _handle_color(self, message: Image) -> None:
         """记录最新 RGB 图像信息。"""
@@ -126,16 +126,16 @@ class CameraInputProbe(Node):
         depth_hz = self._depth.count / elapsed
 
         self.get_logger().info(
-            'color '
-            f'count={self._color.count} hz={color_hz:.2f} '
-            f'size={self._color.width}x{self._color.height} '
-            f'encoding={self._color.encoding} frame={self._color.frame_id}'
+            'RGB 图像 '
+            f'数量={self._color.count} 频率={color_hz:.2f}Hz '
+            f'尺寸={self._color.width}x{self._color.height} '
+            f'编码={self._color.encoding} frame_id={self._color.frame_id}'
         )
         self.get_logger().info(
-            'depth '
-            f'count={self._depth.count} hz={depth_hz:.2f} '
-            f'size={self._depth.width}x{self._depth.height} '
-            f'encoding={self._depth.encoding} frame={self._depth.frame_id}'
+            '深度图像 '
+            f'数量={self._depth.count} 频率={depth_hz:.2f}Hz '
+            f'尺寸={self._depth.width}x{self._depth.height} '
+            f'编码={self._depth.encoding} frame_id={self._depth.frame_id}'
         )
 
 

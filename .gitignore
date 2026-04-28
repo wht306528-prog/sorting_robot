@@ -21,7 +21,8 @@ htmlcov/
 *.swp
 *~
 
-# Large/generated runtime files
+# 大体积或运行时生成文件
+samples/
 *.bag
 *.db3
 *.log

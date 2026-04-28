@@ -1,11 +1,10 @@
 """
-Real-camera tray matrix publisher.
+真实相机苗盘矩阵发布节点。
 
-This node is the first runnable bridge from D435iF image topics to the project
-TrayMatrix message. It uses configured tray ROIs and a simple green-area rule
-as a temporary classifier, so the team can verify camera placement, 5x10 grid
-numbering, depth sampling, and downstream F407 communication before automatic
-tray contour detection is tuned.
+本节点是从 D435iF 或普通相机图像到 TrayMatrix 消息的第一版桥接节点。
+它当前使用配置好的苗盘 ROI 和简单绿色面积规则，方便先验证相机输入、
+5x10 网格编号、深度采样和后续 F407 通信。它是早期联调工具，不是最终
+苗盘外框检测方案。
 """
 
 from __future__ import annotations
@@ -25,7 +24,7 @@ from sorting_vision.detector import (
 
 
 class RealMatrixPublisher(Node):
-    """Publish a full 150-cell TrayMatrix from real RGB-D image topics."""
+    """从真实 RGB-D 图像话题发布完整 150 格 TrayMatrix。"""
 
     def __init__(self) -> None:
         super().__init__('real_matrix_publisher')
@@ -90,13 +89,13 @@ class RealMatrixPublisher(Node):
         )
         self._timer = self.create_timer(publish_period_sec, self._publish_matrix)
 
-        self.get_logger().info(f'Publishing real TrayMatrix on {self._topic_name}')
-        self.get_logger().info(f'Listening color image: {self._color_topic}')
-        self.get_logger().info(f'Listening depth image: {self._depth_topic}')
-        self.get_logger().info(f'Configured tray ROIs: {self._tray_rois}')
+        self.get_logger().info(f'正在发布真实 TrayMatrix：{self._topic_name}')
+        self.get_logger().info(f'正在订阅 RGB 图像：{self._color_topic}')
+        self.get_logger().info(f'正在订阅深度图像：{self._depth_topic}')
+        self.get_logger().info(f'当前配置的苗盘 ROI：{self._tray_rois}')
 
     def _declare_parameters(self) -> None:
-        """Declare ROS parameters used by the node."""
+        """声明本节点使用的 ROS 参数。"""
         self.declare_parameter('tray_matrix_topic', '/sorting/tray_matrix')
         self.declare_parameter('publish_period_sec', 1.0)
         self.declare_parameter('camera_frame_id', '')
@@ -123,7 +122,7 @@ class RealMatrixPublisher(Node):
         self.declare_parameter('color_sample_step_px', 2)
 
     def _detection_config(self) -> DetectionConfig:
-        """Load detector thresholds from ROS parameters."""
+        """从 ROS 参数读取检测阈值。"""
         return DetectionConfig(
             leaf_area_ratio_threshold=self._float_parameter(
                 'leaf_area_ratio_threshold',
@@ -139,7 +138,7 @@ class RealMatrixPublisher(Node):
         )
 
     def _load_tray_rois(self) -> list[TrayRoi]:
-        """Load three configured tray rectangles."""
+        """读取三个配置好的苗盘矩形。"""
         return [
             self._roi_parameter(1),
             self._roi_parameter(2),
@@ -147,10 +146,10 @@ class RealMatrixPublisher(Node):
         ]
 
     def _roi_parameter(self, tray_id: int) -> TrayRoi:
-        """Read one tray ROI parameter in x, y, width, height order."""
+        """按 x、y、width、height 顺序读取一个苗盘 ROI 参数。"""
         values = list(self.get_parameter(f'tray_{tray_id}_roi').value)
         if len(values) != 4:
-            raise ValueError(f'tray_{tray_id}_roi must contain 4 values')
+            raise ValueError(f'tray_{tray_id}_roi 必须包含 4 个数值')
         return TrayRoi(
             tray_id=tray_id,
             x=float(values[0]),
@@ -160,26 +159,26 @@ class RealMatrixPublisher(Node):
         )
 
     def _handle_color(self, message: Image) -> None:
-        """Store the latest color image."""
+        """保存最新 RGB 图像。"""
         self._latest_color = message
 
     def _handle_depth(self, message: Image) -> None:
-        """Store the latest depth image."""
+        """保存最新深度图像。"""
         self._latest_depth = message
 
     def _handle_color_info(self, message: CameraInfo) -> None:
-        """Cache color camera intrinsics."""
+        """缓存 RGB 相机内参。"""
         self._intrinsics.update_color(message)
 
     def _handle_depth_info(self, message: CameraInfo) -> None:
-        """Cache depth camera intrinsics."""
+        """缓存深度相机内参。"""
         self._intrinsics.update_depth(message)
 
     def _publish_matrix(self) -> None:
-        """Build and publish a TrayMatrix from the latest RGB-D frame."""
+        """根据最新 RGB-D 帧构建并发布 TrayMatrix。"""
         if self._latest_color is None:
             if not self._warned_waiting:
-                self.get_logger().warning('Waiting for color image before publish')
+                self.get_logger().warning('正在等待 RGB 图像，暂不发布矩阵')
                 self._warned_waiting = True
             return
 
@@ -199,12 +198,12 @@ class RealMatrixPublisher(Node):
 
         self._publisher.publish(message)
         self.get_logger().info(
-            f'Published frame_id={message.frame_id} cells={len(message.cells)}'
+            f'已发布 frame_id={message.frame_id} cells={len(message.cells)}'
         )
         self._frame_id += 1
 
     def _resolve_frame_id(self) -> str:
-        """Choose the frame id for the outgoing TrayMatrix header."""
+        """选择输出 TrayMatrix header 使用的 frame_id。"""
         if self._camera_frame_id:
             return self._camera_frame_id
         if self._latest_color is not None and self._latest_color.header.frame_id:
@@ -218,7 +217,7 @@ class RealMatrixPublisher(Node):
         color_image: Image,
         depth_image: Image | None,
     ) -> None:
-        """Warn once when depth pixels may not align with color pixels."""
+        """当深度图和 RGB 图尺寸不一致时只警告一次。"""
         if depth_image is None or self._warned_image_size:
             return
         if (
@@ -227,14 +226,14 @@ class RealMatrixPublisher(Node):
         ):
             return
         self.get_logger().warning(
-            'Color and depth image sizes differ; z sampling assumes aligned '
-            'RGB-D streams. Enable RealSense depth alignment or adjust topics.'
+            'RGB 图和深度图尺寸不一致；当前 z 采样默认两路图像已经对齐。'
+            '请启用 RealSense 深度对齐，或调整订阅话题。'
         )
         self._warned_image_size = True
 
     @staticmethod
     def _image_view(message: Image) -> ImageView:
-        """Convert a ROS Image message to the detector's minimal view."""
+        """把 ROS Image 消息转换成检测器使用的轻量图像视图。"""
         return ImageView(
             width=message.width,
             height=message.height,
@@ -244,23 +243,23 @@ class RealMatrixPublisher(Node):
         )
 
     def _string_parameter(self, name: str, default: str) -> str:
-        """Read a string parameter."""
+        """读取字符串参数。"""
         value = self.get_parameter(name).value
         return str(value) if value is not None else default
 
     def _float_parameter(self, name: str, default: float) -> float:
-        """Read a float parameter."""
+        """读取浮点数参数。"""
         value = self.get_parameter(name).value
         return float(value) if value is not None else default
 
     def _int_parameter(self, name: str, default: int) -> int:
-        """Read an integer parameter."""
+        """读取整数参数。"""
         value = self.get_parameter(name).value
         return int(value) if value is not None else default
 
 
 def main(args: list[str] | None = None) -> None:
-    """ROS 2 node entry point."""
+    """ROS 2 节点入口。"""
     rclpy.init(args=args)
     node = RealMatrixPublisher()
     try:

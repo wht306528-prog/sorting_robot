@@ -1,11 +1,9 @@
 """
-Rule-based tray grid detection helpers.
+规则式苗盘网格检测辅助工具。
 
-This module contains the small, ROS-independent pieces used by the first
-real-camera matrix publisher. It intentionally starts with configured tray
-regions of interest instead of automatic tray contour detection, because that
-lets the hardware team verify camera input, grid numbering, depth sampling,
-and F407 communication before the tray detector is fully tuned.
+本模块保存一些不依赖 ROS 节点的基础函数，供早期真实相机矩阵发布节点使用。
+它当前从配置好的苗盘 ROI 开始，而不是直接自动检测外框，目的是先验证相机
+输入、网格编号、深度采样和 F407 通信链路。
 """
 
 from __future__ import annotations
@@ -23,7 +21,7 @@ TRAY_ROWS = 10
 
 @dataclass(frozen=True)
 class TrayRoi:
-    """Configured tray rectangle in image pixel coordinates."""
+    """图像像素坐标系中的苗盘矩形区域。"""
 
     tray_id: int
     x: float
@@ -33,13 +31,13 @@ class TrayRoi:
 
     @property
     def valid(self) -> bool:
-        """Whether the rectangle has usable dimensions."""
+        """矩形尺寸是否有效。"""
         return self.width > 0.0 and self.height > 0.0
 
 
 @dataclass(frozen=True)
 class ImageView:
-    """Minimal view of a sensor_msgs/Image payload."""
+    """对 sensor_msgs/Image 数据的轻量视图。"""
 
     width: int
     height: int
@@ -50,7 +48,7 @@ class ImageView:
 
 @dataclass(frozen=True)
 class DetectionConfig:
-    """Tunable thresholds for the early rule-based classifier."""
+    """早期规则分类器使用的可调阈值。"""
 
     leaf_area_ratio_threshold: float = 0.20
     weak_area_ratio_threshold: float = 0.03
@@ -61,7 +59,7 @@ class DetectionConfig:
 
 @dataclass(frozen=True)
 class CellDetection:
-    """Detection result for one tray cell."""
+    """单个苗盘穴位的检测结果。"""
 
     tray_id: int
     col: int
@@ -73,7 +71,7 @@ class CellDetection:
     z: float
 
     def to_message(self) -> TrayCell:
-        """Convert the detection result to the ROS TrayCell message."""
+        """把检测结果转换成 ROS TrayCell 消息。"""
         cell = TrayCell()
         cell.tray_id = self.tray_id
         cell.col = self.col
@@ -87,7 +85,7 @@ class CellDetection:
 
 
 class RuleBasedTrayDetector:
-    """Generate a 5x10 tray grid and classify each cell with simple rules."""
+    """生成 5x10 苗盘网格，并用简单规则分类每个穴位。"""
 
     def __init__(self, config: DetectionConfig | None = None) -> None:
         self._config = config or DetectionConfig()
@@ -98,7 +96,7 @@ class RuleBasedTrayDetector:
         depth_image: ImageView | None,
         tray_rois: list[TrayRoi],
     ) -> list[CellDetection]:
-        """Detect all configured tray cells."""
+        """检测所有配置苗盘中的穴位。"""
         detections: list[CellDetection] = []
         for roi in sorted(tray_rois, key=lambda item: item.tray_id):
             if not roi.valid:
@@ -112,7 +110,7 @@ class RuleBasedTrayDetector:
         depth_image: ImageView | None,
         roi: TrayRoi,
     ) -> list[CellDetection]:
-        """Generate detections for one configured tray rectangle."""
+        """为一个配置好的苗盘矩形生成穴位检测结果。"""
         cell_width = roi.width / TRAY_COLS
         cell_height = roi.height / TRAY_ROWS
         detections: list[CellDetection] = []
@@ -163,7 +161,7 @@ def classify_by_green_ratio(
     weak_threshold: float,
     depth_mm: float,
 ) -> tuple[int, float]:
-    """Classify one cell using an early green-area rule."""
+    """使用早期绿色面积规则分类单个穴位。"""
     if depth_mm <= 0.0 and green_ratio <= 0.0:
         return TrayCell.CLASS_EMPTY, 0.40
 
@@ -188,7 +186,7 @@ def green_area_ratio(
     inner_scale: float,
     sample_step_px: int,
 ) -> float:
-    """Estimate green-pixel area ratio inside the inner part of a cell."""
+    """估算单个穴位中心区域内绿色像素面积占比。"""
     channels = _color_channels(image.encoding)
     if channels is None:
         return 0.0
@@ -231,7 +229,7 @@ def sample_depth_mm(
     v: float,
     window_px: int,
 ) -> float:
-    """Read a median depth value near a pixel center in millimeters."""
+    """读取像素中心附近的深度中位数，单位为 mm。"""
     if image is None:
         return 0.0
 
@@ -257,7 +255,7 @@ def sample_depth_mm(
 
 
 def _color_channels(encoding: str) -> tuple[int, int, int, int] | None:
-    """Return channel offsets for common RGB image encodings."""
+    """返回常见彩色图像编码中的通道偏移。"""
     normalized = encoding.lower()
     if normalized == 'rgb8':
         return 0, 1, 2, 3
@@ -271,7 +269,7 @@ def _color_channels(encoding: str) -> tuple[int, int, int, int] | None:
 
 
 def _depth_at(image: ImageView, pixel_x: int, pixel_y: int) -> float:
-    """Read one depth pixel and return millimeters."""
+    """读取一个深度像素并转换为 mm。"""
     encoding = image.encoding.lower()
     if encoding in ('16uc1', 'mono16'):
         offset = pixel_y * image.step + pixel_x * 2
