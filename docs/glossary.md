@@ -44,6 +44,8 @@
 | `mock_matrix_publisher` | 模拟矩阵发布节点 | 不接相机，定时发布 150 个模拟穴位 |
 | `camera_input_probe` | 相机输入探测节点 | 订阅 RGB/Depth 图像并打印尺寸、编码和接收频率 |
 | `camera_info_probe` | 相机内参探测节点 | 订阅 RGB/Depth CameraInfo 并打印 fx/fy/cx/cy |
+| `CameraIntrinsics` | 相机内参结构 | 代码中统一保存 width/height/fx/fy/cx/cy 等字段 |
+| `CameraIntrinsicsCache` | 相机内参缓存 | 后续真实视觉节点用于缓存 RGB 和 Depth 两路内参 |
 | `matrix_protocol_printer` | 矩阵协议打印节点 | 订阅矩阵话题并打印 F407 文本协议帧 |
 | `matrix_tcp_sender` | 矩阵 TCP 发送节点 | 订阅矩阵话题并通过 TCP 发送 F407 文本协议帧 |
 | `/sorting/tray_matrix` | 苗盘矩阵话题 | 发布 `TrayMatrix` 消息 |

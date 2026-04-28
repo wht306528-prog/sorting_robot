@@ -113,3 +113,10 @@ report_period_sec=2.0
 color_camera_info_topic=/camera/camera/color/camera_info
 depth_camera_info_topic=/camera/camera/depth/camera_info
 ```
+
+代码约定：
+
+```text
+fx/fy/cx/cy 不写死在算法代码中。
+真实视觉节点应从 CameraInfo 读取，并通过 CameraIntrinsicsCache 缓存。
+```

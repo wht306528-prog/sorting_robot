@@ -23,6 +23,8 @@ from rclpy.node import Node
 import rclpy
 from sensor_msgs.msg import CameraInfo
 
+from sorting_vision.camera_model import CameraIntrinsics, CameraIntrinsicsCache
+
 
 class CameraInfoProbe(Node):
     """订阅 RGB/Depth CameraInfo 并打印关键内参。"""
@@ -52,6 +54,7 @@ class CameraInfoProbe(Node):
         )
         self._printed_color = False
         self._printed_depth = False
+        self._intrinsics = CameraIntrinsicsCache()
 
         self._color_subscription = self.create_subscription(
             CameraInfo,
@@ -74,7 +77,8 @@ class CameraInfoProbe(Node):
 
         if self._printed_color:
             return
-        self._print_camera_info('color', message)
+        intrinsics = self._intrinsics.update_color(message)
+        self._print_camera_info('color', intrinsics)
         self._printed_color = True
         self._try_shutdown_after_print()
 
@@ -83,29 +87,28 @@ class CameraInfoProbe(Node):
 
         if self._printed_depth:
             return
-        self._print_camera_info('depth', message)
+        intrinsics = self._intrinsics.update_depth(message)
+        self._print_camera_info('depth', intrinsics)
         self._printed_depth = True
         self._try_shutdown_after_print()
 
-    def _print_camera_info(self, name: str, message: CameraInfo) -> None:
-        """格式化打印一条 CameraInfo 消息。"""
+    def _print_camera_info(self, name: str, intrinsics: CameraIntrinsics) -> None:
+        """格式化打印一组相机内参。"""
 
-        fx = message.k[0]
-        fy = message.k[4]
-        cx = message.k[2]
-        cy = message.k[5]
-
-        self.get_logger().info(f'[{name}] frame_id={message.header.frame_id}')
+        self.get_logger().info(f'[{name}] frame_id={intrinsics.frame_id}')
         self.get_logger().info(
-            f'[{name}] size={message.width}x{message.height} '
-            f'distortion_model={message.distortion_model}'
+            f'[{name}] size={intrinsics.width}x{intrinsics.height} '
+            f'distortion_model={intrinsics.distortion_model}'
         )
         self.get_logger().info(
-            f'[{name}] fx={fx:.6f} fy={fy:.6f} cx={cx:.6f} cy={cy:.6f}'
+            f'[{name}] fx={intrinsics.fx:.6f} '
+            f'fy={intrinsics.fy:.6f} '
+            f'cx={intrinsics.cx:.6f} '
+            f'cy={intrinsics.cy:.6f}'
         )
-        self.get_logger().info(f'[{name}] D={list(message.d)}')
-        self.get_logger().info(f'[{name}] K={list(message.k)}')
-        self.get_logger().info(f'[{name}] P={list(message.p)}')
+        self.get_logger().info(f'[{name}] D={list(intrinsics.d)}')
+        self.get_logger().info(f'[{name}] K={list(intrinsics.k)}')
+        self.get_logger().info(f'[{name}] P={list(intrinsics.p)}')
 
     def _try_shutdown_after_print(self) -> None:
         """两路内参都打印后，提示用户可以退出节点。"""

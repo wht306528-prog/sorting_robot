@@ -64,6 +64,15 @@ Yc = (v - cy) * Zc / fy
 
 D435iF 的 `fx/fy/cx/cy` 可先从 ROS 2 的 CameraInfo 话题读取。项目中提供 `camera_info_probe` 节点用于打印 RGB 和 Depth 相机内参。
 
+程序层面的约定：
+
+- 不在真实视觉算法里手写固定 `fx/fy/cx/cy`。
+- 使用 `sorting_vision.camera_model.CameraIntrinsicsCache` 缓存当前 RGB 和 Depth 内参。
+- 收到新的 CameraInfo 后自动更新内参。
+- 图像处理时使用当前 CameraInfo 对应的内参。
+
+这样即使相机分辨率或话题配置改变，也不需要在代码里到处查找和修改内参数值。
+
 当前在 VMware + D435iF 上读取到的 CameraInfo：
 
 | 图像 | 尺寸 | fx | fy | cx | cy | distortion_model |
