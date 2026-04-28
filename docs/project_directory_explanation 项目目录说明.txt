@@ -1,0 +1,380 @@
+智能苗盘分拣机器人项目目录说明
+================================
+
+本文用于从“最高级目录”一路说明到“具体文件”，方便不熟悉代码时查找项目内容。
+
+
+一、项目根目录：/home/wht/sorting_robot
+--------------------------------------
+
+sorting_robot/
+  docs/
+    项目说明文档，记录系统设计、运行参数、通信协议、视觉算法、硬件启动、术语等。
+
+  ros2_ws/
+    ROS 2 工作区。以后运行 colcon build 时，应进入这个目录运行：
+      cd /home/wht/sorting_robot/ros2_ws
+      colcon build
+
+    注意：不要在 ros2_ws/src 里运行 colcon build，否则会在 src 下面生成 build/install/log。
+
+  .gitignore
+    Git 忽略规则。用于避免 build、install、log、缓存等生成文件被提交。
+
+
+二、docs 文档目录
+----------------
+
+docs/calibration 标定说明.md
+  记录相机坐标、机械臂坐标、手眼标定、R/T 等标定相关内容。
+
+docs/communication_protocol 通信协议说明.md
+  记录鲁班猫到 F407 的通信格式。
+  当前重点是文本协议：
+    START frame_id=... count=150
+    tray_id,col,row,class_id,confidence,u,v,z
+    END checksum=...
+
+docs/development_guide 开发说明.md
+  记录开发环境、编译方式、运行方式、Git 使用规范和文档维护规则。
+
+docs/glossary 术语对照表.md
+  统一英文变量、中文名称、节点名、话题名、字段名和取值含义。
+  后续改名时，应优先同步这里。
+
+docs/hardware_bringup 硬件启动说明.md
+  记录硬件接入、相机启动、设备识别、现场启动步骤等内容。
+
+docs/runtime_configuration 运行参数配置说明.md
+  记录运行时可修改参数，例如相机话题、F407 IP、ROI、阈值等。
+
+docs/session_handoff 会话交接说明.md
+  新对话或换人接手时优先阅读。
+  它快速说明当前目标、硬件、代码进度、已验证结果和配置文件。
+
+docs/system_design 系统设计说明.md
+  项目总设计文档。
+  说明三条传送带、三类苗、鲁班猫/F407 分工、150 行矩阵格式和整体工作流程。
+
+docs/vision_algorithm 视觉算法说明.md
+  说明视觉算法设计思路。
+  当前代码已实现“临时 ROI + 5x10 规则网格 + 绿色面积占比分类”的第一版骨架。
+
+docs/project_directory_explanation 项目目录说明.txt
+  本文件。用于说明项目目录和每个文件的大致作用。
+
+
+三、ros2_ws 工作区目录
+---------------------
+
+ros2_ws/src/
+  ROS 2 源码包目录。项目自己的 ROS 2 包都放在这里。
+
+ros2_ws/build/
+  colcon build 生成的编译中间文件。
+  不需要手动改，不提交 Git。
+
+ros2_ws/install/
+  colcon build 后生成的安装结果。
+  运行节点前通常需要：
+    source /home/wht/sorting_robot/ros2_ws/install/setup.sh
+  不提交 Git。
+
+ros2_ws/log/
+  colcon 构建日志。
+  不提交 Git。
+
+
+四、ros2_ws/src 下的 ROS 2 包
+----------------------------
+
+1. sorting_interfaces：接口定义包
+--------------------------------
+
+作用：
+  定义 ROS 2 自定义消息。其他包通过这些消息交换数据。
+
+ros2_ws/src/sorting_interfaces/package.xml
+  包信息和依赖声明。
+
+ros2_ws/src/sorting_interfaces/CMakeLists.txt
+  CMake 构建配置。消息生成规则写在这里。
+
+ros2_ws/src/sorting_interfaces/msg/TrayCell.msg
+  单个苗盘穴位信息。
+  一个 TrayCell 对应一个穴位，字段包括：
+    tray_id
+    col
+    row
+    class_id
+    confidence
+    u
+    v
+    z
+
+ros2_ws/src/sorting_interfaces/msg/TrayMatrix.msg
+  一次完整视觉识别结果。
+  正常包含 150 个 TrayCell：
+    3 个苗盘 x 5 列 x 10 行 = 150 格。
+
+ros2_ws/src/sorting_interfaces/msg/ObjectInfo.msg
+  目标信息。当前作为历史兼容或预留消息。
+
+ros2_ws/src/sorting_interfaces/msg/SortCommand.msg
+  分拣命令。当前预留给后续控制流程。
+
+
+2. sorting_vision：视觉识别包
+-----------------------------
+
+作用：
+  负责相机输入、相机内参读取、模拟矩阵发布、真实相机矩阵发布、后续视觉识别算法。
+
+ros2_ws/src/sorting_vision/package.xml
+  sorting_vision 包信息和依赖声明。
+
+ros2_ws/src/sorting_vision/setup.py
+  Python 包安装配置和命令入口。
+  当前重要命令包括：
+    mock_matrix_publisher
+    camera_input_probe
+    camera_info_probe
+    real_matrix_publisher
+
+ros2_ws/src/sorting_vision/setup.cfg
+  Python 节点安装路径配置。
+
+ros2_ws/src/sorting_vision/resource/sorting_vision
+  ROS 2 ament_python 包资源标记文件。
+
+ros2_ws/src/sorting_vision/config/mock_vision.yaml
+  视觉侧配置文件。
+  包含模拟节点参数、相机话题、CameraInfo 话题、三个苗盘 ROI、分类阈值等。
+
+ros2_ws/src/sorting_vision/sorting_vision/__init__.py
+  Python 包初始化文件。
+
+ros2_ws/src/sorting_vision/sorting_vision/node.py
+  mock_matrix_publisher 节点源码。
+  不接相机，定时发布 150 格模拟 TrayMatrix，用于早期联调。
+
+ros2_ws/src/sorting_vision/sorting_vision/camera_input_probe.py
+  camera_input_probe 节点源码。
+  订阅 RGB 和 Depth 图像，打印图像尺寸、编码、frame_id 和接收频率。
+  用于确认相机图像话题是否可用。
+
+ros2_ws/src/sorting_vision/sorting_vision/camera_info_probe.py
+  camera_info_probe 节点源码。
+  订阅 RGB 和 Depth CameraInfo，打印 fx、fy、cx、cy、K、P、D。
+  用于确认相机内参是否可用。
+
+ros2_ws/src/sorting_vision/sorting_vision/camera_model.py
+  相机内参工具。
+  提供 CameraIntrinsics、CameraIntrinsicsCache 和 pixel_to_camera 等功能。
+
+ros2_ws/src/sorting_vision/sorting_vision/detector.py
+  第一版规则检测工具。
+  当前实现：
+    配置苗盘 ROI
+    5x10 网格生成
+    中心点深度采样
+    绿色面积占比临时分类
+
+ros2_ws/src/sorting_vision/sorting_vision/real_matrix_publisher.py
+  real_matrix_publisher 节点源码。
+  订阅真实/普通相机图像，生成 150 格 TrayMatrix 并发布到 /sorting/tray_matrix。
+
+ros2_ws/src/sorting_vision/test/test_detector.py
+  detector.py 的单元测试。
+  测试深度采样、分类阈值和 150 格生成。
+
+ros2_ws/src/sorting_vision/test/test_copyright.py
+ros2_ws/src/sorting_vision/test/test_flake8.py
+ros2_ws/src/sorting_vision/test/test_pep257.py
+  ROS 2 模板自带的代码规范测试。
+
+
+3. sorting_driver：通信驱动包
+-----------------------------
+
+作用：
+  负责把 /sorting/tray_matrix 中的 TrayMatrix 转成 F407 能接收的协议，当前重点是文本协议和 TCP 发送。
+
+ros2_ws/src/sorting_driver/package.xml
+  sorting_driver 包信息和依赖声明。
+
+ros2_ws/src/sorting_driver/setup.py
+  Python 包安装配置和命令入口。
+
+ros2_ws/src/sorting_driver/setup.cfg
+  Python 节点安装路径配置。
+
+ros2_ws/src/sorting_driver/resource/sorting_driver
+  ROS 2 ament_python 包资源标记文件。
+
+ros2_ws/src/sorting_driver/config/driver.yaml
+  TCP 通信配置。
+  包含：
+    tray_matrix_topic
+    f407_host
+    f407_port
+    send_timeout_sec
+
+ros2_ws/src/sorting_driver/config/serial.yaml
+  串口通信配置，预留或用于后续串口方案。
+
+ros2_ws/src/sorting_driver/sorting_driver/__init__.py
+  Python 包初始化文件。
+
+ros2_ws/src/sorting_driver/sorting_driver/protocol.py
+  协议格式化和校验工具。
+  将 TrayMatrix 转为文本帧：
+    START ...
+    150 行 CSV
+    END checksum=...
+
+ros2_ws/src/sorting_driver/sorting_driver/tcp_node.py
+  matrix_tcp_sender 节点源码。
+  订阅 /sorting/tray_matrix，通过 TCP 发送文本协议帧给 F407/W5500。
+
+ros2_ws/src/sorting_driver/sorting_driver/serial_node.py
+  串口通信节点源码。
+  用于或预留给串口通信方案。
+
+ros2_ws/src/sorting_driver/sorting_driver/parser.py
+  协议解析相关工具，预留给后续接收 F407 状态或解析文本帧。
+
+ros2_ws/src/sorting_driver/test/test_copyright.py
+ros2_ws/src/sorting_driver/test/test_flake8.py
+ros2_ws/src/sorting_driver/test/test_pep257.py
+  ROS 2 模板自带的代码规范测试。
+
+
+4. sorting_control：控制逻辑包
+------------------------------
+
+作用：
+  当前预留给上位机控制、调度、状态机或仿真逻辑。
+  目前主要是框架和早期占位代码。
+
+ros2_ws/src/sorting_control/package.xml
+  sorting_control 包信息和依赖声明。
+
+ros2_ws/src/sorting_control/setup.py
+  Python 包安装配置和命令入口。
+
+ros2_ws/src/sorting_control/setup.cfg
+  Python 节点安装路径配置。
+
+ros2_ws/src/sorting_control/resource/sorting_control
+  ROS 2 ament_python 包资源标记文件。
+
+ros2_ws/src/sorting_control/sorting_control/__init__.py
+  Python 包初始化文件。
+
+ros2_ws/src/sorting_control/sorting_control/node.py
+  控制节点入口或占位节点。
+
+ros2_ws/src/sorting_control/sorting_control/planner.py
+  规划逻辑文件，预留给后续任务规划。
+
+ros2_ws/src/sorting_control/sorting_control/state_machine.py
+  状态机逻辑文件，预留给后续流程控制。
+
+ros2_ws/src/sorting_control/test/test_copyright.py
+ros2_ws/src/sorting_control/test/test_flake8.py
+ros2_ws/src/sorting_control/test/test_pep257.py
+  ROS 2 模板自带的代码规范测试。
+
+
+5. sorting_bringup：启动包
+--------------------------
+
+作用：
+  用于一键启动多个节点。
+
+ros2_ws/src/sorting_bringup/package.xml
+  sorting_bringup 包信息和依赖声明。
+
+ros2_ws/src/sorting_bringup/setup.py
+  Python 包安装配置。
+
+ros2_ws/src/sorting_bringup/setup.cfg
+  Python 节点安装路径配置。
+
+ros2_ws/src/sorting_bringup/resource/sorting_bringup
+  ROS 2 ament_python 包资源标记文件。
+
+ros2_ws/src/sorting_bringup/sorting_bringup/__init__.py
+  Python 包初始化文件。
+
+ros2_ws/src/sorting_bringup/launch/bringup.launch.py
+  ROS 2 launch 启动文件。
+  后续可以把相机、视觉节点、driver 节点统一放进这里启动。
+
+ros2_ws/src/sorting_bringup/test/test_copyright.py
+ros2_ws/src/sorting_bringup/test/test_flake8.py
+ros2_ws/src/sorting_bringup/test/test_pep257.py
+  ROS 2 模板自带的代码规范测试。
+
+
+6. sorting_description：机械描述包
+----------------------------------
+
+作用：
+  预留给机械结构描述、URDF、可视化或仿真。
+
+ros2_ws/src/sorting_description/package.xml
+  sorting_description 包信息和依赖声明。
+
+ros2_ws/src/sorting_description/CMakeLists.txt
+  CMake 构建配置。
+
+
+五、当前最常用命令
+------------------
+
+进入项目根目录：
+  cd /home/wht/sorting_robot
+
+进入 ROS 2 工作区：
+  cd /home/wht/sorting_robot/ros2_ws
+
+编译：
+  colcon build
+
+加载环境：
+  source /opt/ros/humble/setup.bash
+  source /home/wht/sorting_robot/ros2_ws/install/setup.sh
+
+如果你的终端已经配置了快捷命令，也可以使用：
+  source_ros2_ws
+
+运行模拟矩阵发布：
+  ros2 run sorting_vision mock_matrix_publisher
+
+运行普通/真实相机矩阵发布：
+  ros2 run sorting_vision real_matrix_publisher --ros-args -p color_image_topic:=/image
+
+查看矩阵：
+  ros2 topic echo /sorting/tray_matrix --once
+
+打印 F407 文本协议：
+  ros2 run sorting_driver matrix_protocol_printer
+
+
+六、哪些目录不要提交
+--------------------
+
+以下是生成物或缓存，不要提交到 Git：
+
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+ros2_ws/src/build/
+ros2_ws/src/install/
+ros2_ws/src/log/
+__pycache__/
+*.pyc
+*.egg-info/
+

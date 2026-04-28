@@ -51,7 +51,7 @@ real_matrix_publisher:
     tray_2_roi: [227.5, 50.0, 185.0, 380.0]
     tray_3_roi: [435.0, 50.0, 185.0, 380.0]
 
-    # 早期规则分类参数。leaf 阈值来自 docs/vision_algorithm.md 的初始建议。
+    # 早期规则分类参数。leaf 阈值来自 docs/vision_algorithm 视觉算法说明.md 的初始建议。
     leaf_area_ratio_threshold: 0.20
     weak_area_ratio_threshold: 0.03
     depth_window_px: 5

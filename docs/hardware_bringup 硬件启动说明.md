@@ -165,7 +165,7 @@ ros2 topic info /camera/depth/image_rect_raw
 相关配置集中记录在：
 
 ```text
-docs/runtime_configuration.md
+docs/runtime_configuration 运行参数配置说明.md
 ```
 
 ## 9. 下一步代码目标

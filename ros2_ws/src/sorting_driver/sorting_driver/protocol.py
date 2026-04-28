@@ -68,7 +68,7 @@ def validate_tray_matrix(message: TrayMatrix) -> list[str]:
     for index, cell in enumerate(message.cells):
         prefix = f'cell[{index}]'
 
-        # 这些范围来自 docs/glossary.md 和 150x8 矩阵约定。
+        # 这些范围来自 docs/glossary 术语对照表.md 和 150x8 矩阵约定。
         if cell.tray_id not in (1, 2, 3):
             errors.append(f'{prefix} tray_id out of range: {cell.tray_id}')
         if not 1 <= cell.col <= 5:

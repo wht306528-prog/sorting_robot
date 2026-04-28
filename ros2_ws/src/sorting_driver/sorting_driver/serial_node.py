@@ -45,7 +45,7 @@ class MatrixProtocolPrinter(Node):
             .string_value
         )
 
-        # 订阅视觉侧输出的三苗盘矩阵。话题名统一记录在 docs/glossary.md。
+        # 订阅视觉侧输出的三苗盘矩阵。话题名统一记录在 docs/glossary 术语对照表.md。
         self._subscription = self.create_subscription(
             TrayMatrix,
             self._topic_name,

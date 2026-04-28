@@ -179,13 +179,13 @@ nc -l 9000
 
 写代码时同步更新文档：
 
-- 改英文变量、代号、中文名称或字段含义时，更新 `docs/glossary.md`。
-- 改运行参数、IP、端口、话题名或配置文件时，更新 `docs/runtime_configuration.md`。
-- 改通信字段时，更新 `docs/communication_protocol.md`。
-- 改识别流程时，更新 `docs/vision_algorithm.md`。
-- 改硬件接入步骤时，更新 `docs/hardware_bringup.md`。
-- 改坐标定义或标定参数时，更新 `docs/calibration.md`。
-- 改系统分工或流程时，更新 `docs/system_design.md`。
+- 改英文变量、代号、中文名称或字段含义时，更新 `docs/glossary 术语对照表.md`。
+- 改运行参数、IP、端口、话题名或配置文件时，更新 `docs/runtime_configuration 运行参数配置说明.md`。
+- 改通信字段时，更新 `docs/communication_protocol 通信协议说明.md`。
+- 改识别流程时，更新 `docs/vision_algorithm 视觉算法说明.md`。
+- 改硬件接入步骤时，更新 `docs/hardware_bringup 硬件启动说明.md`。
+- 改坐标定义或标定参数时，更新 `docs/calibration 标定说明.md`。
+- 改系统分工或流程时，更新 `docs/system_design 系统设计说明.md`。
 
 文档不是最后补的内容，而是开发过程中的设计记录。
 

@@ -58,7 +58,7 @@ class MockMatrixPublisher(Node):
             .string_value
         )
 
-        # 发布完整三苗盘矩阵。话题名称写入 docs/glossary.md，后续不要随意改。
+        # 发布完整三苗盘矩阵。话题名称写入 docs/glossary 术语对照表.md，后续不要随意改。
         self._publisher = self.create_publisher(
             TrayMatrix,
             self._topic_name,
@@ -100,7 +100,7 @@ class MockMatrixPublisher(Node):
     def _make_cell(self, tray_id: int, row: int, col: int) -> TrayCell:
         """生成单个穴位的模拟 TrayCell。
 
-        参数含义遵循 docs/glossary.md：
+        参数含义遵循 docs/glossary 术语对照表.md：
         - tray_id：苗盘序号，1 表示左侧，2 表示中间，3 表示右侧。
         - row：穴位行坐标，1..10，从上到下递增。
         - col：穴位列坐标，1..5，从左到右递增。

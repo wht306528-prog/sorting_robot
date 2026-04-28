@@ -5,10 +5,10 @@
 新对话建议先阅读：
 
 ```text
-docs/session_handoff.md
-docs/system_design.md
-docs/runtime_configuration.md
-docs/glossary.md
+docs/session_handoff 会话交接说明.md
+docs/system_design 系统设计说明.md
+docs/runtime_configuration 运行参数配置说明.md
+docs/glossary 术语对照表.md
 ```
 
 ## 1. 项目目标
