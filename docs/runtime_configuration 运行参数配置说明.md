@@ -156,3 +156,44 @@ fx/fy/cx/cy 不写死在算法代码中。
 ```bash
 ros2 run sorting_vision real_matrix_publisher --ros-args --params-file install/sorting_vision/share/sorting_vision/config/mock_vision.yaml
 ```
+
+## 5. ROI 网格调试图像配置
+
+节点：
+
+```text
+grid_debug_publisher
+```
+
+作用：
+
+- 订阅 RGB 图像。
+- 使用 `tray_1_roi`、`tray_2_roi`、`tray_3_roi` 绘制三个苗盘外框。
+- 在每个苗盘 ROI 内绘制 `5 x 10` 网格线和穴位中心点。
+- 发布到 `/sorting/debug/grid_image`，方便用 `rqt_image_view` 查看 ROI 是否对准苗盘。
+
+参数：
+
+| 参数 | 当前默认值 | 真机注意事项 |
+| --- | --- | --- |
+| `color_image_topic` | `/camera/camera/color/image_raw` | 普通 USB 相机测试时可改为 `/image` |
+| `debug_image_topic` | `/sorting/debug/grid_image` | 用于查看带网格的调试图像 |
+| `tray_1_roi` | `[20.0, 50.0, 185.0, 380.0]` | 应与真实矩阵节点保持一致 |
+| `tray_2_roi` | `[227.5, 50.0, 185.0, 380.0]` | 应与真实矩阵节点保持一致 |
+| `tray_3_roi` | `[435.0, 50.0, 185.0, 380.0]` | 应与真实矩阵节点保持一致 |
+| `debug_line_width_px` | `2` | ROI 框和网格线宽度 |
+| `debug_center_radius_px` | `3` | 穴位中心十字标记大小 |
+
+普通 USB 相机调试示例：
+
+```bash
+ros2 run sorting_vision grid_debug_publisher --ros-args \
+  --params-file install/sorting_vision/share/sorting_vision/config/mock_vision.yaml \
+  -p color_image_topic:=/image
+```
+
+查看调试图像：
+
+```bash
+rqt_image_view /sorting/debug/grid_image
+```

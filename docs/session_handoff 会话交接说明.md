@@ -80,6 +80,7 @@ mock_matrix_publisher
 camera_input_probe
 camera_info_probe
 real_matrix_publisher
+grid_debug_publisher
 ```
 
 说明：
@@ -88,6 +89,7 @@ real_matrix_publisher
 - `camera_input_probe`：订阅 RealSense RGB/Depth 图像，打印尺寸、编码和接收频率。
 - `camera_info_probe`：订阅 RealSense CameraInfo，打印 `fx/fy/cx/cy`、K、P、D。
 - `real_matrix_publisher`：订阅 RGB-D 图像，使用临时三苗盘 ROI 和 `5 x 10` 规则网格发布真实相机链路的 `TrayMatrix`。
+- `grid_debug_publisher`：订阅 RGB 图像，发布画有三苗盘 ROI、网格线和穴位中心点的调试图像。
 
 已完成驱动侧节点：
 
@@ -227,6 +229,9 @@ weak_area_ratio_threshold
 depth_window_px
 roi_inner_scale
 color_sample_step_px
+debug_image_topic
+debug_line_width_px
+debug_center_radius_px
 ```
 
 驱动配置：

@@ -35,6 +35,11 @@ tray_id, col, row, class_id, confidence, u, v, z
 这样可以先验证相机、网格编号、深度采样和通信链路；后续外框识别稳定后，
 再替换 ROI 来源。
 
+为了便于现场调整 ROI，当前还加入了 `grid_debug_publisher`。它订阅 RGB
+图像，在图像上画出三个 ROI、`5 x 10` 网格线和穴位中心点，并发布到
+`/sorting/debug/grid_image`。现场应先用这个调试图像确认中心点落在穴位
+附近，再继续验证分类和深度。
+
 ## 3. 苗盘外框识别
 
 苗盘外框可以先采用传统图像方法：

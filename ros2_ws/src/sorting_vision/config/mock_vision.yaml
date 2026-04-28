@@ -57,3 +57,20 @@ real_matrix_publisher:
     depth_window_px: 5
     roi_inner_scale: 0.65
     color_sample_step_px: 2
+
+grid_debug_publisher:
+  ros__parameters:
+    # 输入 RGB 图像话题。普通 USB 相机调试时可用 -p color_image_topic:=/image 覆盖。
+    color_image_topic: /camera/camera/color/image_raw
+
+    # 输出带 ROI 框、网格线和穴位中心点的调试图像。
+    debug_image_topic: /sorting/debug/grid_image
+
+    # 与 real_matrix_publisher 使用同一组三苗盘 ROI，方便边看边调。
+    tray_1_roi: [20.0, 50.0, 185.0, 380.0]
+    tray_2_roi: [227.5, 50.0, 185.0, 380.0]
+    tray_3_roi: [435.0, 50.0, 185.0, 380.0]
+
+    # 调试图像绘制参数，单位 pixel。
+    debug_line_width_px: 2
+    debug_center_radius_px: 3

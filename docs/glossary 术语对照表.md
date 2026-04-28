@@ -45,11 +45,13 @@
 | `camera_input_probe` | 相机输入探测节点 | 订阅 RGB/Depth 图像并打印尺寸、编码和接收频率 |
 | `camera_info_probe` | 相机内参探测节点 | 订阅 RGB/Depth CameraInfo 并打印 fx/fy/cx/cy |
 | `real_matrix_publisher` | 真实相机矩阵发布节点 | 订阅 RGB-D 图像，按临时 ROI 和规则网格发布 `TrayMatrix` |
+| `grid_debug_publisher` | 网格调试图像发布节点 | 订阅 RGB 图像，绘制三苗盘 ROI、网格线和穴位中心点 |
 | `CameraIntrinsics` | 相机内参结构 | 代码中统一保存 width/height/fx/fy/cx/cy 等字段 |
 | `CameraIntrinsicsCache` | 相机内参缓存 | 后续真实视觉节点用于缓存 RGB 和 Depth 两路内参 |
 | `matrix_protocol_printer` | 矩阵协议打印节点 | 订阅矩阵话题并打印 F407 文本协议帧 |
 | `matrix_tcp_sender` | 矩阵 TCP 发送节点 | 订阅矩阵话题并通过 TCP 发送 F407 文本协议帧 |
 | `/sorting/tray_matrix` | 苗盘矩阵话题 | 发布 `TrayMatrix` 消息 |
+| `/sorting/debug/grid_image` | 网格调试图像话题 | 发布画有 ROI 和 5x10 网格的调试图像 |
 | `/camera/camera/color/image_raw` | RealSense RGB 图像话题 | 当前 VMware 测试中检测到的话题名 |
 | `/camera/camera/depth/image_rect_raw` | RealSense 深度图话题 | 当前 VMware 测试中检测到的话题名 |
 | `/camera/camera/color/camera_info` | RealSense RGB 相机内参话题 | 当前 VMware 测试中检测到的话题名 |
@@ -154,6 +156,7 @@
 | `f407_port` | F407 端口参数 | `matrix_tcp_sender` 使用的目标 TCP 端口 |
 | `send_timeout_sec` | 发送超时时间参数 | TCP 连接和发送超时时间 |
 | `tray_matrix_topic` | 苗盘矩阵话题参数 | 控制节点订阅或发布的矩阵话题名 |
+| `debug_image_topic` | 网格调试图像话题参数 | `grid_debug_publisher` 发布带网格图像的话题名 |
 | `publish_period_sec` | 发布周期参数 | 模拟视觉节点发布周期，单位秒 |
 | `camera_frame_id` | 相机坐标系名称参数 | `TrayMatrix.header.frame_id` 使用的坐标系名 |
 | `color_image_topic` | RGB 图像话题参数 | `camera_input_probe` 订阅的 RGB 图像话题 |
