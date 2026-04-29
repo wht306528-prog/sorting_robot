@@ -10,7 +10,9 @@
 | `Lubancat` | 鲁班猫开发板 | 上位计算平台 |
 | `RK3588` | RK3588 处理器 | 鲁班猫 5 使用的处理器 |
 | `ROS 2 Humble` | ROS 2 Humble 版本 | 鲁班猫侧软件框架 |
-| `D435iF` | Intel RealSense D435iF 深度相机 | RGB-D 相机 |
+| `RGB camera` | 普通 RGB 相机 | 只提供彩色图像，不提供深度 |
+| `RGB-D camera` | RGB-D 相机 | 同时提供彩色图像和深度图 |
+| `D435iF` | Intel RealSense D435iF 深度相机 | 当前测试过的 RGB-D 相机型号，不是算法必须绑定的品牌 |
 | `F407` | STM32F407ZGT6 控制板 | 下位运动控制器 |
 | `W5500` | W5500 以太网模块 | F407 侧以太网通信模块 |
 | `RS485` | RS485 总线 | 伺服电机通信方式 |
@@ -42,9 +44,9 @@
 | 英文 / 代号 | 中文名称 | 说明 |
 | --- | --- | --- |
 | `mock_matrix_publisher` | 模拟矩阵发布节点 | 不接相机，定时发布 150 个模拟穴位 |
-| `camera_input_probe` | 相机输入探测节点 | 订阅 RGB/Depth 图像并打印尺寸、编码和接收频率 |
-| `camera_info_probe` | 相机内参探测节点 | 订阅 RGB/Depth CameraInfo 并打印 fx/fy/cx/cy |
-| `real_matrix_publisher` | 真实相机矩阵发布节点 | 订阅 RGB-D 图像，按临时 ROI 和规则网格发布 `TrayMatrix` |
+| `camera_input_probe` | 相机输入探测节点 | 订阅 RGB 和可选 Depth 图像并打印尺寸、编码和接收频率 |
+| `camera_info_probe` | 相机内参探测节点 | 订阅 RGB 和可选 Depth CameraInfo 并打印 fx/fy/cx/cy |
+| `real_matrix_publisher` | 真实相机矩阵发布节点 | 订阅 RGB 和可选 Depth 图像，按临时 ROI 和规则网格发布 `TrayMatrix` |
 | `grid_debug_publisher` | 网格调试图像发布节点 | 订阅 RGB 图像，绘制三苗盘 ROI、网格线和穴位中心点 |
 | `offline_tray_debug` | 离线苗盘调试脚本 | 读取样本图片，检测或读取苗盘四角点，输出透视矫正和网格调试图片 |
 | `CameraIntrinsics` | 相机内参结构 | 代码中统一保存 width/height/fx/fy/cx/cy 等字段 |
@@ -57,6 +59,7 @@
 | `/camera/camera/depth/image_rect_raw` | RealSense 深度图话题 | 当前 VMware 测试中检测到的话题名 |
 | `/camera/camera/color/camera_info` | RealSense RGB 相机内参话题 | 当前 VMware 测试中检测到的话题名 |
 | `/camera/camera/depth/camera_info` | RealSense 深度相机内参话题 | 当前 VMware 测试中检测到的话题名 |
+| `use_depth` | 是否使用深度输入 | `true` 表示 RGB-D 模式；`false` 表示普通 RGB 相机模式，输出 `z=0` |
 
 ## 4. 苗盘和穴位编号
 

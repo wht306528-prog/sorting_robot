@@ -11,10 +11,13 @@ mock_matrix_publisher:
 
 camera_input_probe:
   ros__parameters:
-    # RealSense ROS 2 默认 RGB 图像话题。实际话题名以 ros2 topic list 为准。
+    # 是否检查深度图。普通 RGB 相机调试时设为 false。
+    use_depth: true
+
+    # RGB 图像话题。这里是 RealSense ROS 2 默认示例，实际话题名以 ros2 topic list 为准。
     color_image_topic: /camera/camera/color/image_raw
 
-    # RealSense ROS 2 默认深度图话题。实际话题名以 ros2 topic list 为准。
+    # 深度图话题。普通 RGB 相机没有该话题，use_depth=false 时不会订阅。
     depth_image_topic: /camera/camera/depth/image_rect_raw
 
     # 状态打印周期，单位秒。
@@ -22,10 +25,13 @@ camera_input_probe:
 
 camera_info_probe:
   ros__parameters:
-    # RealSense ROS 2 默认 RGB 相机内参话题。实际话题名以 ros2 topic list 为准。
+    # 是否检查深度相机内参。普通 RGB 相机调试时设为 false。
+    use_depth: true
+
+    # RGB 相机内参话题。这里是 RealSense ROS 2 默认示例，实际话题名以 ros2 topic list 为准。
     color_camera_info_topic: /camera/camera/color/camera_info
 
-    # RealSense ROS 2 默认深度相机内参话题。实际话题名以 ros2 topic list 为准。
+    # 深度相机内参话题。普通 RGB 相机没有该话题，use_depth=false 时不会订阅。
     depth_camera_info_topic: /camera/camera/depth/camera_info
 
 real_matrix_publisher:
@@ -39,7 +45,11 @@ real_matrix_publisher:
     # 留空时使用 RGB 图像 frame_id。
     camera_frame_id: ''
 
-    # RealSense 图像与内参话题。深度最好使用已对齐到 RGB 的话题。
+    # 是否使用深度图。普通 RGB 相机调试时设为 false，此时 z 输出为 0。
+    use_depth: true
+
+    # 图像与内参话题。这里是 RealSense ROS 2 默认示例，实际话题名以 ros2 topic list 为准。
+    # RGB-D 相机的深度最好使用已对齐到 RGB 的话题。
     color_image_topic: /camera/camera/color/image_raw
     depth_image_topic: /camera/camera/depth/image_rect_raw
     color_camera_info_topic: /camera/camera/color/camera_info

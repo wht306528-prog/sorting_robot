@@ -1,15 +1,15 @@
 """相机内参探测节点。
 
-本节点用于读取 RealSense ROS 2 驱动发布的 CameraInfo。
+本节点用于读取普通 RGB 相机或 RGB-D 相机驱动发布的 CameraInfo。
 
 节点功能：
 1. 订阅 RGB 相机内参话题。
-2. 订阅 Depth 相机内参话题。
+2. 可选订阅 Depth 相机内参话题。
 3. 打印图像尺寸、畸变模型、D 参数、K 矩阵和 P 矩阵。
 4. 从 K 矩阵中提取 fx、fy、cx、cy。
 
 重要说明：
-- 这里读取的是 D435iF 驱动提供的相机内参。
+- 这里读取的是相机驱动提供的 CameraInfo，不绑定具体相机品牌。
 - 这些内参用于像素坐标 u/v 和深度 z 转相机坐标 Xc/Yc/Zc。
 - 相机到机械臂基座的 R/T 不是相机内参，后续仍然需要现场手眼标定。
 
@@ -33,7 +33,7 @@ class CameraInfoProbe(Node):
     def __init__(self) -> None:
         super().__init__('camera_info_probe')
 
-        # CameraInfo 话题名集中放在配置文件里，避免不同 RealSense 命名时改代码。
+        # CameraInfo 话题名集中放在配置文件里，避免不同相机命名时改代码。
         self.declare_parameter(
             'color_camera_info_topic',
             '/camera/camera/color/camera_info',
@@ -42,6 +42,7 @@ class CameraInfoProbe(Node):
             'depth_camera_info_topic',
             '/camera/camera/depth/camera_info',
         )
+        self.declare_parameter('use_depth', True)
 
         self._color_topic = (
             self.get_parameter('color_camera_info_topic')
@@ -53,6 +54,11 @@ class CameraInfoProbe(Node):
             .get_parameter_value()
             .string_value
         )
+        self._use_depth = (
+            self.get_parameter('use_depth')
+            .get_parameter_value()
+            .bool_value
+        )
         self._printed_color = False
         self._printed_depth = False
         self._intrinsics = CameraIntrinsicsCache()
@@ -63,15 +69,20 @@ class CameraInfoProbe(Node):
             self._handle_color_info,
             10,
         )
-        self._depth_subscription = self.create_subscription(
-            CameraInfo,
-            self._depth_topic,
-            self._handle_depth_info,
-            10,
-        )
+        self._depth_subscription = None
+        if self._use_depth:
+            self._depth_subscription = self.create_subscription(
+                CameraInfo,
+                self._depth_topic,
+                self._handle_depth_info,
+                10,
+            )
 
         self.get_logger().info(f'正在订阅 RGB 相机内参：{self._color_topic}')
-        self.get_logger().info(f'正在订阅深度相机内参：{self._depth_topic}')
+        if self._use_depth:
+            self.get_logger().info(f'正在订阅深度相机内参：{self._depth_topic}')
+        else:
+            self.get_logger().info('已关闭深度内参探测：当前只检查 RGB CameraInfo')
 
     def _handle_color_info(self, message: CameraInfo) -> None:
         """打印 RGB 相机内参。"""
@@ -114,9 +125,9 @@ class CameraInfoProbe(Node):
     def _try_shutdown_after_print(self) -> None:
         """两路内参都打印后，提示用户可以退出节点。"""
 
-        if self._printed_color and self._printed_depth:
+        if self._printed_color and (self._printed_depth or not self._use_depth):
             self.get_logger().info(
-                'RGB 和深度相机内参都已收到。需要结束时请按 Ctrl+C。'
+                '需要的相机内参都已收到。需要结束时请按 Ctrl+C。'
             )
 
 

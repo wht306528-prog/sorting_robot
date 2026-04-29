@@ -1,12 +1,12 @@
 """真实相机输入探测节点。
 
-本节点用于 D435iF 接入后的第一步软件验证。
+本节点用于普通 RGB 相机或 RGB-D 相机接入后的第一步软件验证。
 
 节点功能：
 1. 订阅 RGB 图像话题。
-2. 订阅深度图话题。
+2. 可选订阅深度图话题。
 3. 记录最新图像的尺寸、编码、frame_id 和时间戳。
-4. 周期性打印 RGB/Depth 的接收数量和估算频率。
+4. 周期性打印 RGB 和可选 Depth 的接收数量和估算频率。
 
 重要说明：
 - 本节点不做苗盘识别。
@@ -43,7 +43,7 @@ class ImageStats:
 
 
 class CameraInputProbe(Node):
-    """订阅真实 RGB/Depth 图像并周期性打印接收状态。"""
+    """订阅真实 RGB 和可选 Depth 图像并周期性打印接收状态。"""
 
     def __init__(self) -> None:
         super().__init__('camera_input_probe')
@@ -57,6 +57,7 @@ class CameraInputProbe(Node):
             'depth_image_topic',
             '/camera/camera/depth/image_rect_raw',
         )
+        self.declare_parameter('use_depth', True)
         self.declare_parameter('report_period_sec', 2.0)
 
         self._color_topic = (
@@ -68,6 +69,11 @@ class CameraInputProbe(Node):
             self.get_parameter('depth_image_topic')
             .get_parameter_value()
             .string_value
+        )
+        self._use_depth = (
+            self.get_parameter('use_depth')
+            .get_parameter_value()
+            .bool_value
         )
         report_period_sec = (
             self.get_parameter('report_period_sec')
@@ -85,16 +91,21 @@ class CameraInputProbe(Node):
             self._handle_color,
             10,
         )
-        self._depth_subscription = self.create_subscription(
-            Image,
-            self._depth_topic,
-            self._handle_depth,
-            10,
-        )
+        self._depth_subscription = None
+        if self._use_depth:
+            self._depth_subscription = self.create_subscription(
+                Image,
+                self._depth_topic,
+                self._handle_depth,
+                10,
+            )
         self._timer = self.create_timer(report_period_sec, self._report)
 
         self.get_logger().info(f'正在订阅 RGB 图像：{self._color_topic}')
-        self.get_logger().info(f'正在订阅深度图像：{self._depth_topic}')
+        if self._use_depth:
+            self.get_logger().info(f'正在订阅深度图像：{self._depth_topic}')
+        else:
+            self.get_logger().info('已关闭深度输入探测：当前只检查 RGB 图像')
 
     def _handle_color(self, message: Image) -> None:
         """记录最新 RGB 图像信息。"""
@@ -131,12 +142,13 @@ class CameraInputProbe(Node):
             f'尺寸={self._color.width}x{self._color.height} '
             f'编码={self._color.encoding} frame_id={self._color.frame_id}'
         )
-        self.get_logger().info(
-            '深度图像 '
-            f'数量={self._depth.count} 频率={depth_hz:.2f}Hz '
-            f'尺寸={self._depth.width}x{self._depth.height} '
-            f'编码={self._depth.encoding} frame_id={self._depth.frame_id}'
-        )
+        if self._use_depth:
+            self.get_logger().info(
+                '深度图像 '
+                f'数量={self._depth.count} 频率={depth_hz:.2f}Hz '
+                f'尺寸={self._depth.width}x{self._depth.height} '
+                f'编码={self._depth.encoding} frame_id={self._depth.frame_id}'
+            )
 
 
 def main(args: list[str] | None = None) -> None:

@@ -24,7 +24,7 @@ from sorting_vision.detector import (
 
 
 class RealMatrixPublisher(Node):
-    """从真实 RGB-D 图像话题发布完整 150 格 TrayMatrix。"""
+    """从真实 RGB 或 RGB-D 图像话题发布完整 150 格 TrayMatrix。"""
 
     def __init__(self) -> None:
         super().__init__('real_matrix_publisher')
@@ -50,6 +50,7 @@ class RealMatrixPublisher(Node):
             'depth_camera_info_topic',
             '/camera/camera/depth/camera_info',
         )
+        self._use_depth = self._bool_parameter('use_depth', True)
         self._camera_frame_id = self._string_parameter('camera_frame_id', '')
         publish_period_sec = self._float_parameter('publish_period_sec', 1.0)
 
@@ -69,29 +70,35 @@ class RealMatrixPublisher(Node):
             self._handle_color,
             10,
         )
-        self._depth_subscription = self.create_subscription(
-            Image,
-            self._depth_topic,
-            self._handle_depth,
-            10,
-        )
+        self._depth_subscription = None
+        self._depth_info_subscription = None
+        if self._use_depth:
+            self._depth_subscription = self.create_subscription(
+                Image,
+                self._depth_topic,
+                self._handle_depth,
+                10,
+            )
+            self._depth_info_subscription = self.create_subscription(
+                CameraInfo,
+                self._depth_info_topic,
+                self._handle_depth_info,
+                10,
+            )
         self._color_info_subscription = self.create_subscription(
             CameraInfo,
             self._color_info_topic,
             self._handle_color_info,
             10,
         )
-        self._depth_info_subscription = self.create_subscription(
-            CameraInfo,
-            self._depth_info_topic,
-            self._handle_depth_info,
-            10,
-        )
         self._timer = self.create_timer(publish_period_sec, self._publish_matrix)
 
         self.get_logger().info(f'正在发布真实 TrayMatrix：{self._topic_name}')
         self.get_logger().info(f'正在订阅 RGB 图像：{self._color_topic}')
-        self.get_logger().info(f'正在订阅深度图像：{self._depth_topic}')
+        if self._use_depth:
+            self.get_logger().info(f'正在订阅深度图像：{self._depth_topic}')
+        else:
+            self.get_logger().info('已关闭深度输入：将以 RGB-only 模式发布，z=0')
         self.get_logger().info(f'当前配置的苗盘 ROI：{self._tray_rois}')
 
     def _declare_parameters(self) -> None:
@@ -99,6 +106,7 @@ class RealMatrixPublisher(Node):
         self.declare_parameter('tray_matrix_topic', '/sorting/tray_matrix')
         self.declare_parameter('publish_period_sec', 1.0)
         self.declare_parameter('camera_frame_id', '')
+        self.declare_parameter('use_depth', True)
         self.declare_parameter('color_image_topic', '/camera/camera/color/image_raw')
         self.declare_parameter(
             'depth_image_topic',
@@ -175,14 +183,14 @@ class RealMatrixPublisher(Node):
         self._intrinsics.update_depth(message)
 
     def _publish_matrix(self) -> None:
-        """根据最新 RGB-D 帧构建并发布 TrayMatrix。"""
+        """根据最新 RGB 或 RGB-D 帧构建并发布 TrayMatrix。"""
         if self._latest_color is None:
             if not self._warned_waiting:
                 self.get_logger().warning('正在等待 RGB 图像，暂不发布矩阵')
                 self._warned_waiting = True
             return
 
-        depth_image = self._latest_depth
+        depth_image = self._latest_depth if self._use_depth else None
         self._warn_if_geometry_differs(self._latest_color, depth_image)
         detections = self._detector.detect(
             self._image_view(self._latest_color),
@@ -227,7 +235,7 @@ class RealMatrixPublisher(Node):
             return
         self.get_logger().warning(
             'RGB 图和深度图尺寸不一致；当前 z 采样默认两路图像已经对齐。'
-            '请启用 RealSense 深度对齐，或调整订阅话题。'
+            '请启用深度到 RGB 的对齐，或调整订阅话题。'
         )
         self._warned_image_size = True
 
@@ -256,6 +264,11 @@ class RealMatrixPublisher(Node):
         """读取整数参数。"""
         value = self.get_parameter(name).value
         return int(value) if value is not None else default
+
+    def _bool_parameter(self, name: str, default: bool) -> bool:
+        """读取布尔参数。"""
+        value = self.get_parameter(name).value
+        return bool(value) if value is not None else default
 
 
 def main(args: list[str] | None = None) -> None:

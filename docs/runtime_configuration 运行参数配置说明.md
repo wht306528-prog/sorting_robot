@@ -83,7 +83,7 @@ ros2 run sorting_driver matrix_tcp_sender --ros-args -p f407_host:=192.168.1.50 
 - `mock_matrix_publisher` 生成的 `confidence`。
 - `camera_frame_id=mock_camera`。
 
-真实相机接入后，这些值应由 D435iF 图像、深度图、苗盘识别、网格映射和分类算法产生。
+真实相机接入后，这些值应由 RGB/RGB-D 图像、可选深度图、苗盘识别、网格映射和分类算法产生。
 
 ## 4. 后续真实相机参数
 
@@ -92,9 +92,10 @@ ros2 run sorting_driver matrix_tcp_sender --ros-args -p f407_host:=192.168.1.50 
 | 参数 | 说明 |
 | --- | --- |
 | `color_image_topic` | RGB 图像话题 |
-| `depth_image_topic` | 深度图话题 |
+| `use_depth` | 是否使用深度图，普通 RGB 相机设为 `false` |
+| `depth_image_topic` | 深度图话题，`use_depth=false` 时不订阅 |
 | `color_camera_info_topic` | RGB 相机内参话题 |
-| `depth_camera_info_topic` | 深度相机内参话题 |
+| `depth_camera_info_topic` | 深度相机内参话题，`use_depth=false` 时不订阅 |
 | `tray_matrix_topic` | 输出苗盘矩阵话题 |
 | `leaf_area_threshold` | 叶片面积占比阈值 |
 | `empty_depth_threshold_mm` | 空穴深度判断阈值 |
@@ -105,14 +106,16 @@ ros2 run sorting_driver matrix_tcp_sender --ros-args -p f407_host:=192.168.1.50 
 real_matrix_publisher
 ```
 
-它订阅 RGB-D 图像和 CameraInfo，使用临时配置的三个苗盘 ROI 生成 `5 x 10`
-规则网格，并发布完整 `TrayMatrix`。当前分类规则是早期联调用的绿色面积占比
-阈值，不代表最终苗盘识别算法。
+它订阅 RGB 图像和可选深度图，使用临时配置的三个苗盘 ROI 生成 `5 x 10`
+规则网格，并发布完整 `TrayMatrix`。普通 RGB 相机调试时可关闭深度输入，
+此时 `z=0`，只验证图像、网格、类别规则和通信格式。当前分类规则是早期
+联调用的绿色面积占比阈值，不代表最终苗盘识别算法。
 
 当前 `camera_input_probe` 已使用：
 
 ```text
 color_image_topic=/camera/camera/color/image_raw
+use_depth=true
 depth_image_topic=/camera/camera/depth/image_rect_raw
 report_period_sec=2.0
 ```
@@ -121,6 +124,7 @@ report_period_sec=2.0
 
 ```text
 color_camera_info_topic=/camera/camera/color/camera_info
+use_depth=true
 depth_camera_info_topic=/camera/camera/depth/camera_info
 ```
 
@@ -138,8 +142,9 @@ fx/fy/cx/cy 不写死在算法代码中。
 | `tray_matrix_topic` | `/sorting/tray_matrix` | 必须和 driver 节点订阅话题一致 |
 | `publish_period_sec` | `1.0` | 后续建议改为苗盘到位后触发 |
 | `camera_frame_id` | 空字符串 | 留空时使用 RGB 图像 `frame_id` |
+| `use_depth` | `true` | 普通 RGB 相机调试时设为 `false`，此时 `z=0` |
 | `color_image_topic` | `/camera/camera/color/image_raw` | 以现场 `ros2 topic list` 为准 |
-| `depth_image_topic` | `/camera/camera/depth/image_rect_raw` | 最好使用对齐到 RGB 的深度话题 |
+| `depth_image_topic` | `/camera/camera/depth/image_rect_raw` | RGB-D 相机最好使用对齐到 RGB 的深度话题 |
 | `color_camera_info_topic` | `/camera/camera/color/camera_info` | 与 RGB 图像配置匹配 |
 | `depth_camera_info_topic` | `/camera/camera/depth/camera_info` | 与深度图配置匹配 |
 | `tray_1_roi` | `[20.0, 50.0, 185.0, 380.0]` | 1 号苗盘 ROI，格式 `[x, y, width, height]` |
@@ -155,6 +160,15 @@ fx/fy/cx/cy 不写死在算法代码中。
 
 ```bash
 ros2 run sorting_vision real_matrix_publisher --ros-args --params-file install/sorting_vision/share/sorting_vision/config/mock_vision.yaml
+```
+
+普通 RGB 相机调试示例：
+
+```bash
+ros2 run sorting_vision real_matrix_publisher --ros-args \
+  --params-file install/sorting_vision/share/sorting_vision/config/mock_vision.yaml \
+  -p use_depth:=false \
+  -p color_image_topic:=/image
 ```
 
 ## 5. ROI 网格调试图像配置
