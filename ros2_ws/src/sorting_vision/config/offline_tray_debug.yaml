@@ -13,6 +13,14 @@ offline_tray_debug:
   line_width_px: 2
   center_radius_px: 4
 
+  # 网格有效区域内缩比例。
+  # 当前样本中自动检测框已经比较接近穴位区域，默认不内缩。
+  # 如果新样本中中心点压到苗盘边框，再小幅调整这些参数。
+  grid_margin_left_ratio: 0.0
+  grid_margin_right_ratio: 0.0
+  grid_margin_top_ratio: 0.0
+  grid_margin_bottom_ratio: 0.0
+
   # 自动矩形候选检测参数。
   auto_detect: true
   max_auto_trays: 3

@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -29,6 +30,10 @@ class OfflineDebugConfig:
     warped_height_px: int
     line_width_px: int
     center_radius_px: int
+    grid_margin_left_ratio: float
+    grid_margin_right_ratio: float
+    grid_margin_top_ratio: float
+    grid_margin_bottom_ratio: float
     auto_detect: bool
     max_auto_trays: int
     min_area_ratio: float
@@ -38,6 +43,16 @@ class OfflineDebugConfig:
     x_range_padding_px: int
     merge_kernel_px: int
     trays: list['ConfiguredTray']
+
+    @property
+    def grid_margins(self) -> tuple[float, float, float, float]:
+        """返回左、右、上、下网格内缩比例。"""
+        return (
+            self.grid_margin_left_ratio,
+            self.grid_margin_right_ratio,
+            self.grid_margin_top_ratio,
+            self.grid_margin_bottom_ratio,
+        )
 
 
 @dataclass(frozen=True)
@@ -55,6 +70,20 @@ class TrayCandidate:
     corners: np.ndarray
     area: float
     center_x: float
+
+
+@dataclass(frozen=True)
+class OfflineCellRecord:
+    """离线样本中单个穴位的 8 列输出记录。"""
+
+    tray_id: int
+    col: int
+    row: int
+    class_id: int
+    confidence: float
+    u: float
+    v: float
+    z: float
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -90,6 +119,7 @@ def main(argv: list[str] | None = None) -> None:
     prefix = output_dir / image_path.stem
     overlay = image.copy()
     candidate_debug = draw_candidates(image, candidates)
+    cell_records: list[OfflineCellRecord] = []
 
     for tray in sorted(trays, key=lambda item: item.tray_id):
         ordered = order_corners(tray.corners)
@@ -97,8 +127,20 @@ def main(argv: list[str] | None = None) -> None:
             overlay,
             ordered,
             tray.tray_id,
+            width=config.warped_width_px,
+            height=config.warped_height_px,
             line_width=config.line_width_px,
             center_radius=config.center_radius_px,
+            margins=config.grid_margins,
+        )
+        cell_records.extend(
+            build_offline_cell_records(
+                tray_id=tray.tray_id,
+                corners=ordered,
+                width=config.warped_width_px,
+                height=config.warped_height_px,
+                margins=config.grid_margins,
+            )
         )
         warped = warp_tray(
             image,
@@ -111,6 +153,7 @@ def main(argv: list[str] | None = None) -> None:
             warped_grid,
             line_width=config.line_width_px,
             center_radius=config.center_radius_px,
+            margins=config.grid_margins,
         )
         cv2.imwrite(str(prefix) + f'_tray_{tray.tray_id}_warped.jpg', warped)
         cv2.imwrite(
@@ -120,12 +163,15 @@ def main(argv: list[str] | None = None) -> None:
 
     cv2.imwrite(str(prefix) + '_overlay_grid.jpg', overlay)
     cv2.imwrite(str(prefix) + '_candidates.jpg', candidate_debug)
+    write_cell_records_csv(prefix.with_name(prefix.name + '_cells.csv'), cell_records)
 
     print(f'输入图片：{image_path}')
     print(f'输出目录：{output_dir}')
     print(f'处理苗盘数量：{len(trays)}')
+    print(f'输出穴位记录：{len(cell_records)}')
     print(f'已写出：{prefix}_overlay_grid.jpg')
     print(f'已写出：{prefix}_candidates.jpg')
+    print(f'已写出：{prefix}_cells.csv')
 
 
 def load_config(path: str | Path) -> OfflineDebugConfig:
@@ -139,6 +185,10 @@ def load_config(path: str | Path) -> OfflineDebugConfig:
         warped_height_px=int(root.get('warped_height_px', 1000)),
         line_width_px=int(root.get('line_width_px', 2)),
         center_radius_px=int(root.get('center_radius_px', 4)),
+        grid_margin_left_ratio=float(root.get('grid_margin_left_ratio', 0.0)),
+        grid_margin_right_ratio=float(root.get('grid_margin_right_ratio', 0.0)),
+        grid_margin_top_ratio=float(root.get('grid_margin_top_ratio', 0.0)),
+        grid_margin_bottom_ratio=float(root.get('grid_margin_bottom_ratio', 0.0)),
         auto_detect=bool(root.get('auto_detect', True)),
         max_auto_trays=int(root.get('max_auto_trays', 3)),
         min_area_ratio=float(root.get('min_area_ratio', 0.02)),
@@ -404,13 +454,14 @@ def draw_projected_grid(
     image: np.ndarray,
     corners: np.ndarray,
     tray_id: int,
+    width: int,
+    height: int,
     line_width: int,
     center_radius: int,
+    margins: tuple[float, float, float, float],
 ) -> None:
     """在原图上绘制苗盘外框和反投影的 5x10 网格。"""
     color = tray_color(tray_id)
-    width = 500
-    height = 1000
     source = np.array(
         [
             [0.0, 0.0],
@@ -422,7 +473,7 @@ def draw_projected_grid(
     )
     matrix = cv2.getPerspectiveTransform(source, corners.astype(np.float32))
 
-    grid_lines = build_warped_grid_lines(width, height)
+    grid_lines = build_warped_grid_lines(width, height, margins)
     for start, end in grid_lines:
         points = np.array([[start, end]], dtype=np.float32)
         projected = cv2.perspectiveTransform(points, matrix)[0].astype(int)
@@ -435,7 +486,7 @@ def draw_projected_grid(
             cv2.LINE_AA,
         )
 
-    centers = build_warped_centers(width, height)
+    centers = build_warped_centers(width, height, margins)
     for center in centers:
         point = np.array([[center]], dtype=np.float32)
         projected = cv2.perspectiveTransform(point, matrix)[0][0].astype(int)
@@ -454,51 +505,154 @@ def draw_projected_grid(
     )
 
 
+def build_offline_cell_records(
+    tray_id: int,
+    corners: np.ndarray,
+    width: int,
+    height: int,
+    margins: tuple[float, float, float, float],
+) -> list[OfflineCellRecord]:
+    """生成离线样本的穴位中心记录，字段顺序对齐后续 F407 8 列协议。
+
+    当前离线照片没有深度图，分类算法也还没有正式接入，所以 `z`、`class_id`
+    和 `confidence` 先使用占位值。真正重要的是先把三盘 150 个 `u/v`
+    图像坐标和行列编号稳定导出来。
+    """
+    source = np.array(
+        [
+            [0.0, 0.0],
+            [float(width), 0.0],
+            [float(width), float(height)],
+            [0.0, float(height)],
+        ],
+        dtype=np.float32,
+    )
+    matrix = cv2.getPerspectiveTransform(source, corners.astype(np.float32))
+    centers = build_warped_centers(width, height, margins)
+    records: list[OfflineCellRecord] = []
+
+    for index, center in enumerate(centers):
+        row = index // TRAY_COLS + 1
+        col = index % TRAY_COLS + 1
+        point = np.array([[center]], dtype=np.float32)
+        projected = cv2.perspectiveTransform(point, matrix)[0][0]
+        records.append(
+            OfflineCellRecord(
+                tray_id=tray_id,
+                col=col,
+                row=row,
+                class_id=0,
+                confidence=0.0,
+                u=float(projected[0]),
+                v=float(projected[1]),
+                z=0.0,
+            )
+        )
+    return records
+
+
+def write_cell_records_csv(
+    path: Path,
+    records: list[OfflineCellRecord],
+) -> None:
+    """把离线穴位记录写成 CSV，便于人工检查或交给下游脚本读取。"""
+    fieldnames = [
+        'tray_id',
+        'col',
+        'row',
+        'class_id',
+        'confidence',
+        'u',
+        'v',
+        'z',
+    ]
+    with path.open('w', encoding='utf-8', newline='') as file:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+        for record in records:
+            writer.writerow(
+                {
+                    'tray_id': record.tray_id,
+                    'col': record.col,
+                    'row': record.row,
+                    'class_id': record.class_id,
+                    'confidence': f'{record.confidence:.3f}',
+                    'u': f'{record.u:.2f}',
+                    'v': f'{record.v:.2f}',
+                    'z': f'{record.z:.2f}',
+                }
+            )
+
+
 def draw_warped_grid(
     image: np.ndarray,
     line_width: int,
     center_radius: int,
+    margins: tuple[float, float, float, float],
 ) -> None:
     """在透视矫正后的苗盘图上绘制 5x10 网格。"""
     height, width = image.shape[:2]
     color = (0, 255, 0)
 
-    for start, end in build_warped_grid_lines(width, height):
+    for start, end in build_warped_grid_lines(width, height, margins):
         cv2.line(image, start, end, color, line_width, cv2.LINE_AA)
 
-    for center in build_warped_centers(width, height):
+    for center in build_warped_centers(width, height, margins):
         draw_cross(image, center, center_radius, color)
 
 
 def build_warped_grid_lines(
     width: int,
     height: int,
+    margins: tuple[float, float, float, float],
 ) -> list[tuple[tuple[int, int], tuple[int, int]]]:
     """生成矫正图坐标系中的网格线端点。"""
+    left, right, top, bottom = _grid_bounds(width, height, margins)
     lines: list[tuple[tuple[int, int], tuple[int, int]]] = []
     for col in range(TRAY_COLS + 1):
-        x = int(round(col * width / TRAY_COLS))
-        lines.append(((x, 0), (x, height)))
+        x = int(round(left + col * (right - left) / TRAY_COLS))
+        lines.append(((x, top), (x, bottom)))
     for row in range(TRAY_ROWS + 1):
-        y = int(round(row * height / TRAY_ROWS))
-        lines.append(((0, y), (width, y)))
+        y = int(round(top + row * (bottom - top) / TRAY_ROWS))
+        lines.append(((left, y), (right, y)))
     return lines
 
 
-def build_warped_centers(width: int, height: int) -> list[tuple[int, int]]:
+def build_warped_centers(
+    width: int,
+    height: int,
+    margins: tuple[float, float, float, float],
+) -> list[tuple[int, int]]:
     """生成矫正图坐标系中的 5x10 穴位中心点。"""
+    left, right, top, bottom = _grid_bounds(width, height, margins)
     centers: list[tuple[int, int]] = []
-    cell_width = width / TRAY_COLS
-    cell_height = height / TRAY_ROWS
+    cell_width = (right - left) / TRAY_COLS
+    cell_height = (bottom - top) / TRAY_ROWS
     for row in range(TRAY_ROWS):
         for col in range(TRAY_COLS):
             centers.append(
                 (
-                    int(round((col + 0.5) * cell_width)),
-                    int(round((row + 0.5) * cell_height)),
+                    int(round(left + (col + 0.5) * cell_width)),
+                    int(round(top + (row + 0.5) * cell_height)),
                 )
             )
     return centers
+
+
+def _grid_bounds(
+    width: int,
+    height: int,
+    margins: tuple[float, float, float, float],
+) -> tuple[int, int, int, int]:
+    """根据内缩比例计算实际穴位网格区域边界。"""
+    left_ratio, right_ratio, top_ratio, bottom_ratio = margins
+    left = int(round(width * max(0.0, left_ratio)))
+    right = int(round(width * (1.0 - max(0.0, right_ratio))))
+    top = int(round(height * max(0.0, top_ratio)))
+    bottom = int(round(height * (1.0 - max(0.0, bottom_ratio))))
+    if right <= left or bottom <= top:
+        raise ValueError('网格内缩参数过大，导致有效区域为空')
+    return left, right, top, bottom
 
 
 def draw_cross(

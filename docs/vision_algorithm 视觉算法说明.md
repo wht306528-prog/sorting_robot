@@ -46,6 +46,10 @@ tray_id, col, row, class_id, confidence, u, v, z
 当前自动检测优先使用“深色苗盘区域横向投影”方案：先分割深色塑料苗盘，
 再按横向暗像素分布切分左、中、右三个候选，最后分别计算外接矩形和网格。
 如果该方案在新样本中不稳定，仍可临时使用配置四角点验证透视矫正流程。
+同时它会输出 `*_cells.csv`，字段顺序为
+`tray_id,col,row,class_id,confidence,u,v,z`。当前离线照片没有深度图，
+分类算法也还没接入，所以 `class_id/confidence/z` 先是占位值；这一文件
+主要用于检查 150 个穴位编号和 `u/v` 图像坐标是否稳定。
 
 当前代码中的第一版真实相机节点是 `real_matrix_publisher`。它先跳过自动
 苗盘外框识别，使用配置文件里的 `tray_1_roi`、`tray_2_roi`、`tray_3_roi`
