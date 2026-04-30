@@ -503,6 +503,56 @@ def draw_projected_grid(
         2,
         cv2.LINE_AA,
     )
+    draw_tray_size_label(image, corners, color)
+
+
+def draw_tray_size_label(
+    image: np.ndarray,
+    corners: np.ndarray,
+    color: tuple[int, int, int],
+) -> None:
+    """在苗盘右上角标注自动识别矩形的像素宽高。"""
+    width_px, height_px = tray_pixel_size(corners)
+    text = f'W={width_px:.0f}px H={height_px:.0f}px'
+    text_size, baseline = cv2.getTextSize(
+        text,
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.55,
+        2,
+    )
+    text_width, text_height = text_size
+    image_height, image_width = image.shape[:2]
+    top_right = corners[1].astype(int)
+    x = int(np.clip(top_right[0] - text_width, 0, image_width - text_width - 1))
+    y = int(np.clip(top_right[1] - 8, text_height + 2, image_height - baseline - 1))
+    background_start = (x - 3, y - text_height - 3)
+    background_end = (x + text_width + 3, y + baseline + 3)
+    cv2.rectangle(
+        image,
+        background_start,
+        background_end,
+        (0, 0, 0),
+        -1,
+    )
+    cv2.putText(
+        image,
+        text,
+        (x, y),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.55,
+        color,
+        2,
+        cv2.LINE_AA,
+    )
+
+
+def tray_pixel_size(corners: np.ndarray) -> tuple[float, float]:
+    """计算识别框在原图中的平均宽度和高度，单位是像素。"""
+    top_width = float(np.linalg.norm(corners[1] - corners[0]))
+    bottom_width = float(np.linalg.norm(corners[2] - corners[3]))
+    left_height = float(np.linalg.norm(corners[3] - corners[0]))
+    right_height = float(np.linalg.norm(corners[2] - corners[1]))
+    return (top_width + bottom_width) / 2.0, (left_height + right_height) / 2.0
 
 
 def build_offline_cell_records(
