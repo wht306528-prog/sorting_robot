@@ -34,6 +34,18 @@ camera_info_probe:
     # 深度相机内参话题。普通 RGB 相机没有该话题，use_depth=false 时不会订阅。
     depth_camera_info_topic: /camera/camera/depth/camera_info
 
+depth_point_probe:
+  ros__parameters:
+    # 单点深度探测默认使用“已对齐到 RGB”的深度图，适合验证某个像素点的 z。
+    depth_image_topic: /camera/camera/aligned_depth_to_color/image_raw
+    camera_info_topic: /camera/camera/aligned_depth_to_color/camera_info
+
+    # 默认探测画面中心点。可用 -p u:=... -p v:=... 临时覆盖。
+    u: 320.0
+    v: 240.0
+    depth_window_px: 5
+    report_period_sec: 1.0
+
 real_matrix_publisher:
   ros__parameters:
     # 输出苗盘矩阵话题，后续 driver 节点订阅这个话题。
