@@ -35,6 +35,10 @@ docs/communication_protocol 通信协议说明.md
     tray_id,col,row,class_id,confidence,u,v,z
     END checksum=...
 
+docs/current_project_state 当前项目状态.md
+  记录当前真实项目状态、已验证能力、样本/debug 位置和下一步主线。
+  新开对话或重新接手项目时，建议优先阅读该文件。
+
 docs/development_guide 开发说明.md
   记录开发环境、编译方式、运行方式、Git 使用规范和文档维护规则。
 
@@ -142,9 +146,12 @@ ros2_ws/src/sorting_vision/setup.py
     mock_matrix_publisher
     camera_input_probe
     camera_info_probe
+    depth_point_probe
+    capture_rgbd_sample
     grid_debug_publisher
     real_matrix_publisher
     offline_tray_debug
+    tray_grid_debug
 
 ros2_ws/src/sorting_vision/setup.cfg
   Python 节点安装路径配置。
@@ -177,6 +184,14 @@ ros2_ws/src/sorting_vision/sorting_vision/camera_info_probe.py
   订阅 RGB 和 Depth CameraInfo，打印 fx、fy、cx、cy、K、P、D。
   用于确认相机内参是否可用。
 
+ros2_ws/src/sorting_vision/sorting_vision/depth_point_probe.py
+  depth_point_probe 节点源码。
+  订阅 aligned depth 和 CameraInfo，探测指定像素点的深度和相机坐标。
+
+ros2_ws/src/sorting_vision/sorting_vision/capture_rgbd_sample.py
+  capture_rgbd_sample 节点源码。
+  保存一组 RGB、aligned depth 和 CameraInfo metadata，用于离线算法调试。
+
 ros2_ws/src/sorting_vision/sorting_vision/camera_model.py
   相机内参工具。
   提供 CameraIntrinsics、CameraIntrinsicsCache 和 pixel_to_camera 等功能。
@@ -201,6 +216,14 @@ ros2_ws/src/sorting_vision/sorting_vision/real_matrix_publisher.py
 ros2_ws/src/sorting_vision/sorting_vision/offline_tray_debug.py
   offline_tray_debug 离线样本调试脚本。
   从磁盘读取样本图片，自动检测或读取苗盘四角点，输出透视矫正图和 5x10 网格图。
+
+ros2_ws/src/sorting_vision/sorting_vision/tray_grid_debug.py
+  tray_grid_debug 离线网格结构调试脚本。
+  当前更推荐作为视觉几何主线：粗定位苗盘后，尝试利用内部穴位结构拟合透视关系。
+
+scripts/archive_debug_outputs.py
+  整理 samples/debug 输出的辅助脚本。
+  会生成 samples/debug/_review/README.md、contact_sheets 和 key_images，方便集中看效果。
 
 ros2_ws/src/sorting_vision/test/test_detector.py
   detector.py 的单元测试。

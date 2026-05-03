@@ -5,11 +5,15 @@
 新对话建议先阅读：
 
 ```text
+docs/current_project_state 当前项目状态.md
 docs/session_handoff 会话交接说明.md
 docs/system_design 系统设计说明.md
 docs/runtime_configuration 运行参数配置说明.md
 docs/glossary 术语对照表.md
 ```
+
+注意：本文包含较多早期阶段记录。若硬件环境、相机分辨率、当前主线与
+`docs/current_project_state 当前项目状态.md` 冲突，以当前状态文档和代码为准。
 
 ## 1. 项目目标
 
