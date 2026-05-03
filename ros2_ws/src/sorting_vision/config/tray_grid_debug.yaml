@@ -1,0 +1,24 @@
+tray_grid_debug:
+  # 批量评估 RGB-D 样本中的苗盘内部网格结构。
+  # 这是新一轮算法原型：先看内部格线/穴位结构是否稳定，再决定如何生成 5x10。
+
+  warped_width_px: 500
+  warped_height_px: 1000
+
+  # 复用深色苗盘粗定位参数。粗定位只负责裁出单盘区域，不作为最终网格依据。
+  max_auto_trays: 3
+  min_area_ratio: 0.02
+  dark_pixel_threshold: 75
+  column_active_ratio: 0.12
+  projection_smooth_px: 11
+  x_range_padding_px: 8
+  merge_kernel_px: 23
+
+  # Hough 线检测参数，用来观察苗盘内部横竖格线是否能被稳定提取。
+  canny_low_threshold: 50
+  canny_high_threshold: 150
+  hough_threshold: 70
+  hough_min_line_length_px: 60
+  hough_max_line_gap_px: 12
+  vertical_angle_tolerance_deg: 18.0
+  horizontal_angle_tolerance_deg: 18.0

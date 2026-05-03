@@ -233,7 +233,7 @@ offline_tray_debug
 - 如果配置文件没有四角点，则尝试自动检测矩形苗盘候选。
 - 对每个苗盘做透视矫正。
 - 在矫正图和原图反投影上绘制 `5 x 10` 网格。
-- 输出调试图片到 `samples/debug/` 或命令行指定目录。
+- 输出调试图片到 `samples/debug_/` 或命令行指定目录。
 
 参数：
 
@@ -259,7 +259,7 @@ offline_tray_debug
 ros2 run sorting_vision offline_tray_debug -- \
   --image samples/raw/example.jpg \
   --config src/sorting_vision/config/offline_tray_debug.yaml \
-  --output-dir samples/debug
+  --output-dir samples/debug_/runs
 ```
 
 说明：

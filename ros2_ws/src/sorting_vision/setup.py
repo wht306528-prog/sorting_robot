@@ -28,11 +28,13 @@ setup(
         'console_scripts': [
             'camera_info_probe = sorting_vision.camera_info_probe:main',
             'camera_input_probe = sorting_vision.camera_input_probe:main',
+            'capture_rgbd_sample = sorting_vision.capture_rgbd_sample:main',
             'depth_point_probe = sorting_vision.depth_point_probe:main',
             'grid_debug_publisher = sorting_vision.grid_debug_publisher:main',
             'mock_matrix_publisher = sorting_vision.node:main',
             'offline_tray_debug = sorting_vision.offline_tray_debug:main',
             'real_matrix_publisher = sorting_vision.real_matrix_publisher:main',
+            'tray_grid_debug = sorting_vision.tray_grid_debug:main',
         ],
     },
 )

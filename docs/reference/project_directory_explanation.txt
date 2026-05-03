@@ -222,8 +222,8 @@ ros2_ws/src/sorting_vision/sorting_vision/tray_grid_debug.py
   当前更推荐作为视觉几何主线：粗定位苗盘后，尝试利用内部穴位结构拟合透视关系。
 
 scripts/archive_debug_outputs.py
-  整理 samples/debug 输出的辅助脚本。
-  会生成 samples/debug/_review/README.md、contact_sheets 和 key_images，方便集中看效果。
+  整理 samples/debug_ 输出的辅助脚本。
+  会生成 samples/debug_/_review/README.md、contact_sheets 和 key_images，方便集中看效果。
 
 ros2_ws/src/sorting_vision/test/test_detector.py
   detector.py 的单元测试。

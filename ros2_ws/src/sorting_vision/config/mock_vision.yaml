@@ -34,6 +34,17 @@ camera_info_probe:
     # 深度相机内参话题。普通 RGB 相机没有该话题，use_depth=false 时不会订阅。
     depth_camera_info_topic: /camera/camera/depth/camera_info
 
+capture_rgbd_sample:
+  ros__parameters:
+    # 保存一组 RGB-D 样本，用于离线调试苗盘定位和深度采样。
+    color_image_topic: /camera/camera/color/image_raw
+    depth_image_topic: /camera/camera/aligned_depth_to_color/image_raw
+    color_camera_info_topic: /camera/camera/color/camera_info
+    depth_camera_info_topic: /camera/camera/aligned_depth_to_color/camera_info
+    output_dir: samples/rgbd
+    prefix: sample
+    capture_timeout_sec: 10.0
+
 depth_point_probe:
   ros__parameters:
     # 单点深度探测默认使用“已对齐到 RGB”的深度图，适合验证某个像素点的 z。

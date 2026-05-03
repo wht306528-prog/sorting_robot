@@ -17,9 +17,11 @@ import numpy as np
 IMAGE_SUFFIXES = {'.jpg', '.jpeg', '.png'}
 CSV_SUFFIXES = {'.csv'}
 PRIORITY_KINDS = [
+    'fitted_overlay',
     'grid_overlay',
     'overlay_grid',
     'hole_overlay',
+    'rough_candidates',
     'candidates',
     'grid_rectified',
     'hole_grid',
@@ -82,7 +84,7 @@ def collect_debug_files(debug_dir: Path, review_dir: Path) -> list[DebugFile]:
         if path.suffix.lower() not in IMAGE_SUFFIXES | CSV_SUFFIXES:
             continue
         rel_path = path.relative_to(debug_dir)
-        run = rel_path.parts[0] if len(rel_path.parts) >= 2 else '_root'
+        run = parse_run_name(rel_path)
         sample = parse_sample(path.name)
         tray = parse_tray(path.name)
         kind = parse_kind(path.name)
@@ -98,6 +100,14 @@ def collect_debug_files(debug_dir: Path, review_dir: Path) -> list[DebugFile]:
             )
         )
     return files
+
+
+def parse_run_name(rel_path: Path) -> str:
+    if len(rel_path.parts) >= 3 and rel_path.parts[0] == 'runs':
+        return rel_path.parts[1]
+    if len(rel_path.parts) >= 2:
+        return rel_path.parts[0]
+    return '_root'
 
 
 def parse_sample(name: str) -> str:
@@ -203,7 +213,14 @@ def resize_to_fit(image: np.ndarray, max_w: int, max_h: int) -> np.ndarray:
 
 def copy_key_images(files: list[DebugFile], output_dir: Path) -> None:
     output_dir.mkdir(exist_ok=True)
-    wanted = {'grid_overlay', 'overlay_grid', 'hole_overlay', 'candidates'}
+    wanted = {
+        'fitted_overlay',
+        'grid_overlay',
+        'overlay_grid',
+        'hole_overlay',
+        'rough_candidates',
+        'candidates',
+    }
     for item in files:
         if item.suffix not in IMAGE_SUFFIXES or item.kind not in wanted:
             continue
@@ -221,7 +238,7 @@ def write_readme(
     lines = [
         '# Debug Review Index',
         '',
-        '这个目录是 `samples/debug` 的集中查看入口。原始 debug 输出没有移动，',
+        f'这个目录是 `{debug_dir}` 的集中查看入口。原始 debug 输出没有移动，',
         '这里只生成清单、关键图副本和 contact sheet，方便判断哪一轮算法值得看。',
         '',
         '## 先看哪里',
@@ -279,9 +296,9 @@ def recommend_focus(run: str) -> str:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description='整理 samples/debug 的查看索引。')
-    parser.add_argument('--debug-dir', default='samples/debug')
-    parser.add_argument('--review-dir', default='samples/debug/_review')
+    parser = argparse.ArgumentParser(description='整理调试输出目录的查看索引。')
+    parser.add_argument('--debug-dir', default='samples/debug_')
+    parser.add_argument('--review-dir', default='samples/debug_/_review')
     return parser.parse_args()
 
 

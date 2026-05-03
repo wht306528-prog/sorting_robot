@@ -33,10 +33,10 @@
 
 ## Debug 查看入口
 
-算法效果不要在 `samples/debug` 里到处翻，先看：
+算法效果不要在 `samples/debug_` 里到处翻，先看：
 
 ```text
-samples/debug/_review/README.md
+samples/debug_/_review/README.md
 ```
 
 重建 debug 索引：

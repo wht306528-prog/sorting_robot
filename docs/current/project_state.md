@@ -84,15 +84,15 @@ sample_001_metadata.json ... sample_010_metadata.json
 已整理 debug 查看入口：
 
 ```text
-samples/debug/_review/README.md
+samples/debug_/_review/README.md
 ```
 
 以后看算法效果优先看：
 
 ```text
-samples/debug/_review/contact_sheets/tray_grid__grid_overlay.jpg
-samples/debug/_review/contact_sheets/tray_grid__grid_rectified.jpg
-samples/debug/_review/contact_sheets/tray_grid__candidates.jpg
+samples/debug_/_review/contact_sheets/tray_grid__grid_overlay.jpg
+samples/debug_/_review/contact_sheets/tray_grid__grid_rectified.jpg
+samples/debug_/_review/contact_sheets/tray_grid__candidates.jpg
 ```
 
 重新生成 debug 查看索引：
@@ -123,9 +123,12 @@ tray_grid_debug         当前主线离线网格调试工具
 cd /home/wht/sorting_robot
 python3 ros2_ws/src/sorting_vision/sorting_vision/tray_grid_debug.py \
   --input-dir samples/rgbd \
-  --output-dir samples/debug/tray_grid
+  --output-dir samples/debug_/runs
 python3 scripts/archive_debug_outputs.py
 ```
+
+`tray_grid_debug.py` 默认会在 `samples/debug_/runs/` 下新建时间戳子目录，
+每次测试互不覆盖。
 
 ## 6. 当前代码风险
 
@@ -161,4 +164,3 @@ python3 scripts/archive_debug_outputs.py
 - 稳定输出 150 个穴位中心点 `u/v/z`。
 - 再开始做单穴作物分类。
 - 分类稳定后再迁移到实时节点。
-
