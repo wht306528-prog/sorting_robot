@@ -17,6 +17,12 @@ import numpy as np
 IMAGE_SUFFIXES = {'.jpg', '.jpeg', '.png'}
 CSV_SUFFIXES = {'.csv'}
 PRIORITY_KINDS = [
+    'before_after',
+    'rectify_overlay',
+    'rectified',
+    'matrix_overlay',
+    'rectified_grid_fitted',
+    'rectified_edges',
     'fitted_overlay',
     'grid_overlay',
     'overlay_grid',
@@ -48,7 +54,7 @@ def main() -> None:
     debug_dir = Path(args.debug_dir)
     review_dir = Path(args.review_dir)
     review_dir.mkdir(parents=True, exist_ok=True)
-    (review_dir / 'contact_sheets').mkdir(exist_ok=True)
+    (review_dir / 'runs').mkdir(exist_ok=True)
 
     files = collect_debug_files(debug_dir, review_dir)
     write_inventory(review_dir / 'inventory.csv', files)
@@ -56,6 +62,8 @@ def main() -> None:
     sheet_rows = []
     for run in sorted({item.run for item in files}):
         run_files = [item for item in files if item.run == run]
+        run_review_dir = review_dir / 'runs' / run
+        run_review_dir.mkdir(parents=True, exist_ok=True)
         for kind in PRIORITY_KINDS:
             images = [
                 item.path for item in run_files
@@ -63,11 +71,11 @@ def main() -> None:
             ]
             if not images:
                 continue
-            sheet_path = review_dir / 'contact_sheets' / f'{run}__{kind}.jpg'
+            sheet_path = run_review_dir / f'{kind}.jpg'
             make_contact_sheet(images, sheet_path, title=f'{run} / {kind}')
             sheet_rows.append((run, kind, len(images), sheet_path))
 
-    copy_key_images(files, review_dir / 'key_images')
+    copy_key_images(files, review_dir / 'runs')
     write_readme(review_dir / 'README.md', debug_dir, files, sheet_rows)
     print(f'已整理 debug 归档索引：{review_dir}')
     print(f'文件清单：{review_dir / "inventory.csv"}')
@@ -80,6 +88,8 @@ def collect_debug_files(debug_dir: Path, review_dir: Path) -> list[DebugFile]:
         if not path.is_file():
             continue
         if review_dir in path.parents:
+            continue
+        if 'archive' in path.relative_to(debug_dir).parts:
             continue
         if path.suffix.lower() not in IMAGE_SUFFIXES | CSV_SUFFIXES:
             continue
@@ -211,9 +221,9 @@ def resize_to_fit(image: np.ndarray, max_w: int, max_h: int) -> np.ndarray:
     return cv2.resize(image, new_size, interpolation=cv2.INTER_AREA)
 
 
-def copy_key_images(files: list[DebugFile], output_dir: Path) -> None:
-    output_dir.mkdir(exist_ok=True)
+def copy_key_images(files: list[DebugFile], output_root: Path) -> None:
     wanted = {
+        'rectify_overlay',
         'fitted_overlay',
         'grid_overlay',
         'overlay_grid',
@@ -224,7 +234,9 @@ def copy_key_images(files: list[DebugFile], output_dir: Path) -> None:
     for item in files:
         if item.suffix not in IMAGE_SUFFIXES or item.kind not in wanted:
             continue
-        target = output_dir / f'{item.run}__{item.path.name}'
+        output_dir = output_root / item.run / 'key_images'
+        output_dir.mkdir(parents=True, exist_ok=True)
+        target = output_dir / item.path.name
         shutil.copy2(item.path, target)
 
 
@@ -243,8 +255,8 @@ def write_readme(
         '',
         '## 先看哪里',
         '',
-        '1. `key_images/`：每轮最关键的原图 overlay、候选框图。',
-        '2. `contact_sheets/`：按实验目录和图片类型拼好的总览图。',
+        '1. `runs/每次测试名/`：每次测试独立一个文件夹。',
+        '2. 每个 run 文件夹下的 `rectified.jpg`、`rectify_overlay.jpg`、`fitted_overlay.jpg`。',
         '3. `inventory.csv`：所有 debug 文件的索引清单。',
         '',
         '## 实验目录',
@@ -260,6 +272,10 @@ def write_readme(
             f'| `{run}` | {len(run_files)} | {image_count} | {csv_count} | '
             f'{recommend_focus(run)} |'
         )
+
+    lines.extend(['', '## 每次测试输出', ''])
+    for run in runs:
+        lines.append(f'- `{run}`: [runs/{run}/](runs/{run}/)')
 
     lines.extend(['', '## Contact Sheets', ''])
     for run, kind, count, sheet_path in sheet_rows:
