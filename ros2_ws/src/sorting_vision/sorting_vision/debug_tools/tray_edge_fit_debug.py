@@ -68,6 +68,7 @@ def write_debug_images(output_dir: Path, image: np.ndarray, result: TrayEdgeFitR
 
 def draw_contour(image: np.ndarray, result: TrayEdgeFitResult) -> np.ndarray:
     output = image.copy()
+    draw_body_roi(output, result)
     if result.contour is not None:
         cv2.drawContours(output, [result.contour], -1, (0, 255, 0), 2, cv2.LINE_AA)
     if result.initial_box is not None:
@@ -78,6 +79,7 @@ def draw_contour(image: np.ndarray, result: TrayEdgeFitResult) -> np.ndarray:
 
 def draw_side_points(image: np.ndarray, result: TrayEdgeFitResult) -> np.ndarray:
     output = image.copy()
+    draw_body_roi(output, result)
     colors = {
         'top': (0, 255, 255),
         'right': (0, 255, 0),
@@ -94,6 +96,7 @@ def draw_side_points(image: np.ndarray, result: TrayEdgeFitResult) -> np.ndarray
 
 def draw_fitted_lines(image: np.ndarray, result: TrayEdgeFitResult) -> np.ndarray:
     output = image.copy()
+    draw_body_roi(output, result)
     colors = {
         'top': (0, 255, 255),
         'right': (0, 255, 0),
@@ -110,6 +113,13 @@ def draw_fitted_lines(image: np.ndarray, result: TrayEdgeFitResult) -> np.ndarra
             cv2.putText(output, str(index), (center[0] + 5, center[1] - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (0, 255, 255), 1, cv2.LINE_AA)
     cv2.putText(output, result.status, (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.58, status_color(result), 2, cv2.LINE_AA)
     return output
+
+
+def draw_body_roi(image: np.ndarray, result: TrayEdgeFitResult) -> None:
+    if result.body_roi is None:
+        return
+    x, y, width, height = result.body_roi
+    cv2.rectangle(image, (x, y), (x + width, y + height), (255, 255, 0), 1, cv2.LINE_AA)
 
 
 def draw_line(image: np.ndarray, line: tuple[float, float, float], color: tuple[int, int, int], thickness: int) -> None:

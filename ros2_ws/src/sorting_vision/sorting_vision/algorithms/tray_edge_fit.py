@@ -14,11 +14,15 @@ LineABC = tuple[float, float, float]
 @dataclass(frozen=True)
 class TrayEdgeFitConfig:
     dark_threshold: int = 95
+    projection_active_ratio: float = 0.12
+    projection_smooth_ratio: float = 0.035
     close_kernel_ratio: float = 0.045
     open_kernel_px: int = 3
     min_area_ratio: float = 0.16
     side_band_ratio: float = 0.075
     min_side_points: int = 18
+    tray_aspect_ratio: float = 0.50
+    aspect_width_tolerance: float = 0.23
     rectified_width: int = 500
     rectified_height: int = 1000
     rectified_padding: int = 50
@@ -29,6 +33,7 @@ class TrayEdgeFitResult:
     status: str
     message: str
     mask: np.ndarray
+    body_roi: tuple[int, int, int, int] | None
     contour: np.ndarray | None
     initial_box: np.ndarray | None
     side_points: dict[str, np.ndarray]
@@ -54,11 +59,11 @@ def fit_tray_edges(
         return failed_result('input image must be HxWx3', np.zeros(image.shape[:2], dtype=np.uint8))
 
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    mask = build_tray_body_mask(gray, config)
+    mask, body_roi = build_tray_body_mask(gray, config)
     mask = keep_center_body_component(mask, config)
     contour = find_largest_body_contour(mask, image.shape[:2], config)
     if contour is None:
-        return failed_result('no large dark tray body contour', mask)
+        return failed_result('no large dark tray body contour', mask, body_roi)
 
     initial_box = order_corners(cv2.boxPoints(cv2.minAreaRect(contour)).astype(np.float32))
     side_points = collect_side_points(contour, initial_box, image.shape[:2], config)
@@ -68,6 +73,7 @@ def fit_tray_edges(
             status='failed',
             message=f'not enough contour points for sides: {",".join(missing)}',
             mask=mask,
+            body_roi=body_roi,
             contour=contour,
             initial_box=initial_box,
             side_points=side_points,
@@ -84,6 +90,7 @@ def fit_tray_edges(
                 status='failed',
                 message=f'line fit failed for {side}',
                 mask=mask,
+                body_roi=body_roi,
                 contour=contour,
                 initial_box=initial_box,
                 side_points=side_points,
@@ -99,6 +106,7 @@ def fit_tray_edges(
             status='failed',
             message='line intersections failed',
             mask=mask,
+            body_roi=body_roi,
             contour=contour,
             initial_box=initial_box,
             side_points=side_points,
@@ -111,6 +119,7 @@ def fit_tray_edges(
             status='failed',
             message='fitted corners outside valid crop geometry',
             mask=mask,
+            body_roi=body_roi,
             contour=contour,
             initial_box=initial_box,
             side_points=side_points,
@@ -124,6 +133,7 @@ def fit_tray_edges(
         status='ok',
         message='fitted four contour-supported tray border lines',
         mask=mask,
+        body_roi=body_roi,
         contour=contour,
         initial_box=initial_box,
         side_points=side_points,
@@ -133,11 +143,16 @@ def fit_tray_edges(
     )
 
 
-def failed_result(message: str, mask: np.ndarray) -> TrayEdgeFitResult:
+def failed_result(
+    message: str,
+    mask: np.ndarray,
+    body_roi: tuple[int, int, int, int] | None = None,
+) -> TrayEdgeFitResult:
     return TrayEdgeFitResult(
         status='failed',
         message=message,
         mask=mask,
+        body_roi=body_roi,
         contour=None,
         initial_box=None,
         side_points={side: np.empty((0, 2), dtype=np.float32) for side in ('top', 'right', 'bottom', 'left')},
@@ -147,8 +162,17 @@ def failed_result(message: str, mask: np.ndarray) -> TrayEdgeFitResult:
     )
 
 
-def build_tray_body_mask(gray: np.ndarray, config: TrayEdgeFitConfig) -> np.ndarray:
+def build_tray_body_mask(
+    gray: np.ndarray,
+    config: TrayEdgeFitConfig,
+) -> tuple[np.ndarray, tuple[int, int, int, int] | None]:
     mask = (gray <= config.dark_threshold).astype(np.uint8) * 255
+    body_roi = estimate_body_roi_from_projection(mask, config)
+    if body_roi is not None:
+        x, y, width, height = body_roi
+        clipped = np.zeros_like(mask)
+        clipped[y:y + height, x:x + width] = mask[y:y + height, x:x + width]
+        mask = clipped
     mask = remove_side_border_components(mask)
     kernel_size = max(3, int(round(min(gray.shape[:2]) * config.close_kernel_ratio)))
     if kernel_size % 2 == 0:
@@ -159,7 +183,166 @@ def build_tray_body_mask(gray: np.ndarray, config: TrayEdgeFitConfig) -> np.ndar
     if open_kernel_size % 2 == 0:
         open_kernel_size += 1
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((open_kernel_size, open_kernel_size), np.uint8), iterations=1)
-    return mask
+    return mask, body_roi
+
+
+def estimate_body_roi_from_projection(
+    mask: np.ndarray,
+    config: TrayEdgeFitConfig,
+) -> tuple[int, int, int, int] | None:
+    height, width = mask.shape[:2]
+    x_projection = (mask > 0).sum(axis=0).astype(np.float32)
+    x_range = central_projection_span(
+        projection=x_projection,
+        active_threshold=height * config.projection_active_ratio,
+        smooth_px=max(5, int(round(width * 0.018))),
+        min_length=max(20, int(round(width * 0.30))),
+    )
+    if x_range is None:
+        x_range = best_projection_range(
+            projection=x_projection,
+            active_threshold=height * config.projection_active_ratio,
+            smooth_px=max(5, int(round(width * config.projection_smooth_ratio))),
+            min_length=max(20, int(round(width * 0.30))),
+            total_length=width,
+        )
+    y_range = best_projection_range(
+        projection=(mask > 0).sum(axis=1).astype(np.float32),
+        active_threshold=width * config.projection_active_ratio,
+        smooth_px=max(5, int(round(height * config.projection_smooth_ratio))),
+        min_length=max(30, int(round(height * 0.45))),
+        total_length=height,
+    )
+    if x_range is None or y_range is None:
+        return None
+    x_range = constrain_x_range_by_aspect(x_range, y_range, width, config)
+    x0, x1 = pad_range(x_range, width, max(4, int(round(width * 0.025))))
+    y0, y1 = pad_range(y_range, height, max(4, int(round(height * 0.025))))
+    return x0, y0, x1 - x0 + 1, y1 - y0 + 1
+
+
+def constrain_x_range_by_aspect(
+    x_range: tuple[int, int],
+    y_range: tuple[int, int],
+    image_width: int,
+    config: TrayEdgeFitConfig,
+) -> tuple[int, int]:
+    x0, x1 = x_range
+    current_width = x1 - x0 + 1
+    body_height = y_range[1] - y_range[0] + 1
+    expected_width = body_height * config.tray_aspect_ratio
+    max_width = int(round(expected_width * (1.0 + config.aspect_width_tolerance)))
+    if max_width <= 0 or current_width <= max_width:
+        return x_range
+
+    center = image_width * 0.5
+    left = int(round(center - max_width * 0.5))
+    right = left + max_width - 1
+    if left < x0:
+        left = x0
+        right = left + max_width - 1
+    if right > x1:
+        right = x1
+        left = right - max_width + 1
+    left = max(0, left)
+    right = min(image_width - 1, right)
+    return left, right
+
+
+def central_projection_span(
+    projection: np.ndarray,
+    active_threshold: float,
+    smooth_px: int,
+    min_length: int,
+) -> tuple[int, int] | None:
+    smooth_px = max(1, smooth_px)
+    if smooth_px % 2 == 0:
+        smooth_px += 1
+    kernel = np.ones((smooth_px,), dtype=np.float32) / float(smooth_px)
+    smoothed = np.convolve(projection, kernel, mode='same')
+    center = len(smoothed) // 2
+    search_radius = max(4, len(smoothed) // 5)
+    left = max(0, center - search_radius)
+    right = min(len(smoothed), center + search_radius + 1)
+    local = smoothed[left:right]
+    if len(local) == 0:
+        return None
+    anchor = int(left + np.argmax(local))
+    if smoothed[anchor] < active_threshold:
+        return None
+
+    valley_threshold = max(active_threshold * 0.45, smoothed[anchor] * 0.12)
+    gap_px = max(3, int(round(len(smoothed) * 0.012)))
+    start = scan_to_valley(smoothed, anchor, -1, valley_threshold, gap_px)
+    end = scan_to_valley(smoothed, anchor, 1, valley_threshold, gap_px)
+    if end - start + 1 < min_length:
+        return None
+    return start, end
+
+
+def scan_to_valley(
+    values: np.ndarray,
+    start_index: int,
+    direction: int,
+    threshold: float,
+    gap_px: int,
+) -> int:
+    index = start_index
+    gap_count = 0
+    last_active = start_index
+    while 0 <= index < len(values):
+        if values[index] <= threshold:
+            gap_count += 1
+            if gap_count >= gap_px:
+                return max(0, min(len(values) - 1, last_active))
+        else:
+            gap_count = 0
+            last_active = index
+        index += direction
+    return max(0, min(len(values) - 1, last_active))
+
+
+def best_projection_range(
+    projection: np.ndarray,
+    active_threshold: float,
+    smooth_px: int,
+    min_length: int,
+    total_length: int,
+) -> tuple[int, int] | None:
+    smooth_px = max(1, smooth_px)
+    if smooth_px % 2 == 0:
+        smooth_px += 1
+    kernel = np.ones((smooth_px,), dtype=np.float32) / float(smooth_px)
+    smoothed = np.convolve(projection, kernel, mode='same')
+    active = smoothed >= active_threshold
+    ranges = active_ranges(active, min_length)
+    if not ranges:
+        return None
+    center = total_length * 0.5
+    return max(
+        ranges,
+        key=lambda item: (item[1] - item[0] + 1) - abs(((item[0] + item[1]) * 0.5) - center) * 0.35,
+    )
+
+
+def active_ranges(active: np.ndarray, min_length: int) -> list[tuple[int, int]]:
+    ranges: list[tuple[int, int]] = []
+    start: int | None = None
+    for index, value in enumerate(active):
+        if bool(value) and start is None:
+            start = index
+        elif not bool(value) and start is not None:
+            if index - start >= min_length:
+                ranges.append((start, index - 1))
+            start = None
+    if start is not None and len(active) - start >= min_length:
+        ranges.append((start, len(active) - 1))
+    return ranges
+
+
+def pad_range(value: tuple[int, int], limit: int, padding: int) -> tuple[int, int]:
+    start, end = value
+    return max(0, start - padding), min(limit - 1, end + padding)
 
 
 def remove_side_border_components(mask: np.ndarray) -> np.ndarray:
