@@ -53,6 +53,7 @@ def main(argv: list[str] | None = None) -> None:
         debug_image = draw_result(image, result)
         output_name = f'{image_path.stem}_tray_geometry_step01.jpg'
         cv2.imwrite(str(output_dir / output_name), debug_image)
+        write_tray_cut_outputs(image, image_path.stem, output_dir, result)
         overview_tiles.append(make_labeled_tile(debug_image, f'{image_path.name} {result.status}', width=420))
         rows.extend(result_rows(image_path.name, output_name, result))
         print(f'{image_path.name}: {result.status} candidates={len(result.candidates)}')
@@ -121,6 +122,138 @@ def draw_result(image: np.ndarray, result: TrayGeometryResult) -> np.ndarray:
             cv2.LINE_AA,
         )
     return output
+
+
+def write_tray_cut_outputs(
+    image: np.ndarray,
+    image_stem: str,
+    output_dir: Path,
+    result: TrayGeometryResult,
+) -> None:
+    image_output_dir = output_dir / image_stem
+    image_output_dir.mkdir(parents=True, exist_ok=True)
+    for candidate in result.candidates:
+        tray_output_dir = image_output_dir / f'tray_{candidate.tray_id}'
+        tray_output_dir.mkdir(parents=True, exist_ok=True)
+        crop = crop_candidate(image, candidate.bbox, padding=10)
+        crop_path = tray_output_dir / '01_crop_raw.jpg'
+        crop_edge_path = tray_output_dir / '01b_crop_edge_fit.jpg'
+        rectified_path = tray_output_dir / '02_rectified.jpg'
+        edges_path = tray_output_dir / '03_rectified_edges.jpg'
+        compare_path = tray_output_dir / '04_pipeline_compare.jpg'
+        cv2.imwrite(str(crop_path), crop)
+        if candidate.corners is None:
+            failed = crop.copy()
+            cv2.putText(failed, 'edge fit failed; no rectification', (12, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 0, 255), 2, cv2.LINE_AA)
+            cv2.imwrite(str(crop_edge_path), failed)
+            cv2.imwrite(str(rectified_path), failed)
+            cv2.imwrite(str(edges_path), failed)
+            cv2.imwrite(str(compare_path), make_pipeline_compare(crop, failed, failed, failed))
+            continue
+
+        crop_edge = draw_crop_edge_fit(crop, candidate.bbox, candidate.corners)
+        rectified = rectify_from_corners(image, candidate.corners, width=500, height=1000, padding=60)
+        rectified_edges = draw_rectified_edges(rectified)
+        cv2.imwrite(str(crop_edge_path), crop_edge)
+        cv2.imwrite(str(rectified_path), rectified)
+        cv2.imwrite(str(edges_path), rectified_edges)
+        cv2.imwrite(str(compare_path), make_pipeline_compare(crop, crop_edge, rectified, rectified_edges))
+
+
+def crop_candidate(image: np.ndarray, bbox: tuple[int, int, int, int], padding: int) -> np.ndarray:
+    x, y, width, height = bbox
+    x0 = max(0, x - padding)
+    y0 = max(0, y - padding)
+    x1 = min(image.shape[1], x + width + padding)
+    y1 = min(image.shape[0], y + height + padding)
+    return image[y0:y1, x0:x1].copy()
+
+
+def rectify_from_corners(
+    image: np.ndarray,
+    corners: np.ndarray,
+    width: int,
+    height: int,
+    padding: int,
+) -> np.ndarray:
+    source = corners.astype(np.float32)
+    target = np.asarray(
+        [
+            [float(padding), float(padding)],
+            [float(padding + width - 1), float(padding)],
+            [float(padding + width - 1), float(padding + height - 1)],
+            [float(padding), float(padding + height - 1)],
+        ],
+        dtype=np.float32,
+    )
+    matrix = cv2.getPerspectiveTransform(source, target)
+    return cv2.warpPerspective(
+        image,
+        matrix,
+        (width + padding * 2, height + padding * 2),
+        borderMode=cv2.BORDER_REPLICATE,
+    )
+
+
+def draw_rectified_edges(image: np.ndarray) -> np.ndarray:
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(cv2.GaussianBlur(gray, (5, 5), 0), 45, 130)
+    lines = cv2.HoughLinesP(
+        edges,
+        rho=1,
+        theta=np.pi / 180.0,
+        threshold=90,
+        minLineLength=max(50, min(image.shape[:2]) // 5),
+        maxLineGap=16,
+    )
+    output = image.copy()
+    if lines is None:
+        cv2.putText(output, 'no rectified edge lines', (12, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 0, 255), 2, cv2.LINE_AA)
+        return output
+    for line in lines[:80, 0, :]:
+        x1, y1, x2, y2 = [int(value) for value in line]
+        cv2.line(output, (x1, y1), (x2, y2), (0, 255, 0), 2, cv2.LINE_AA)
+    return output
+
+
+def draw_crop_edge_fit(
+    crop: np.ndarray,
+    bbox: tuple[int, int, int, int],
+    corners: np.ndarray,
+    padding: int = 10,
+) -> np.ndarray:
+    x, y, _width, _height = bbox
+    local_corners = corners.astype(np.float32).copy()
+    local_corners[:, 0] -= float(x - padding)
+    local_corners[:, 1] -= float(y - padding)
+    output = crop.copy()
+    cv2.polylines(output, [np.round(local_corners).astype(np.int32)], True, (0, 255, 0), 3, cv2.LINE_AA)
+    for index, point in enumerate(local_corners, start=1):
+        center = (int(round(point[0])), int(round(point[1])))
+        cv2.circle(output, center, 5, (0, 255, 255), -1, cv2.LINE_AA)
+        cv2.putText(output, str(index), (center[0] + 5, center[1] - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1, cv2.LINE_AA)
+    return output
+
+
+def make_pipeline_compare(*images: np.ndarray) -> np.ndarray:
+    labels = [
+        '01 crop raw',
+        '01b edge fit on crop',
+        '02 rectified',
+        '03 edges on rectified',
+    ]
+    panels = [
+        make_labeled_tile(image, labels[index], width=260)
+        for index, image in enumerate(images)
+    ]
+    height = max(panel.shape[0] for panel in panels)
+    width = sum(panel.shape[1] for panel in panels)
+    canvas = np.full((height, width, 3), 245, dtype=np.uint8)
+    x = 0
+    for panel in panels:
+        canvas[:panel.shape[0], x:x + panel.shape[1]] = panel
+        x += panel.shape[1]
+    return canvas
 
 
 def tray_color(tray_id: int) -> tuple[int, int, int]:
