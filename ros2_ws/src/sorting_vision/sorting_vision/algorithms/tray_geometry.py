@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import cv2
 import numpy as np
 
 
@@ -25,6 +26,18 @@ class TrayGeometryConfig:
     """苗盘几何识别配置。"""
 
     expected_tray_count: int = 3
+    dark_threshold: int = 85
+    projection_active_ratio: float = 0.10
+    projection_smooth_px: int = 19
+    min_width_ratio: float = 0.08
+    min_height_ratio: float = 0.35
+    min_area_ratio: float = 0.025
+    x_padding_px: int = 10
+    morphology_kernel_px: int = 17
+    edge_roi_padding_px: int = 12
+    hough_threshold: int = 35
+    hough_min_line_length_ratio: float = 0.35
+    hough_max_line_gap_px: int = 18
 
 
 @dataclass(frozen=True)
@@ -34,6 +47,9 @@ class TrayGeometryCandidate:
     tray_id: int
     status: str
     message: str
+    bbox: tuple[int, int, int, int]
+    center: tuple[float, float]
+    area: float
     corners: np.ndarray | None = None
 
 
@@ -52,8 +68,7 @@ def detect_tray_geometry(
 ) -> TrayGeometryResult:
     """检测一张 RGB/BGR 图中的苗盘几何。
 
-    这是新算法入口。当前只做输入校验，不输出任何伪造候选。
-    后续每加一步，都必须配套 debug 输出和失败状态。
+    Step 01 只做粗定位，不做四边拟合和透视矫正。
     """
 
     if config is None:
@@ -70,8 +85,442 @@ def detect_tray_geometry(
             message='expected_tray_count must be positive',
             candidates=[],
         )
+    candidates = locate_tray_candidates(image, config)
+    fitted_count = sum(1 for candidate in candidates if candidate.corners is not None)
+    if len(candidates) == config.expected_tray_count and fitted_count == config.expected_tray_count:
+        return TrayGeometryResult(
+            status='ok',
+            message=f'found {len(candidates)} tray candidates with fitted edges',
+            candidates=candidates,
+        )
+    if len(candidates) == config.expected_tray_count:
+        return TrayGeometryResult(
+            status='partial_edges',
+            message=(
+                f'found {len(candidates)} tray candidates, '
+                f'fitted edges for {fitted_count}'
+            ),
+            candidates=candidates,
+        )
+    if candidates:
+        return TrayGeometryResult(
+            status='partial',
+            message=f'found {len(candidates)} of {config.expected_tray_count} tray candidates',
+            candidates=candidates,
+        )
     return TrayGeometryResult(
-        status='not_implemented',
-        message='tray geometry algorithm skeleton is ready; detection is not implemented yet',
+        status='failed',
+        message='no tray candidates found',
         candidates=[],
     )
+
+
+def locate_tray_candidates(
+    image: np.ndarray,
+    config: TrayGeometryConfig,
+) -> list[TrayGeometryCandidate]:
+    """按深色主体横向投影粗定位苗盘。"""
+
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    mask = build_dark_body_mask(gray, config)
+    ranges = find_active_x_ranges(mask, config)
+
+    candidates: list[TrayGeometryCandidate] = []
+    image_shape = image.shape
+    for x_start, x_end in ranges:
+        candidate = candidate_from_x_range(mask, image_shape, x_start, x_end, config)
+        if candidate is not None:
+            candidates.append(candidate)
+
+    if len(candidates) < config.expected_tray_count:
+        split_candidates = split_wide_ranges(mask, image_shape, ranges, candidates, config)
+        if len(split_candidates) >= config.expected_tray_count:
+            candidates = split_candidates
+        else:
+            candidates.extend(split_candidates)
+
+    candidates = dedupe_candidates(candidates)
+    candidates.sort(key=lambda item: item.center[0])
+    candidates = candidates[:config.expected_tray_count]
+    numbered = [
+        TrayGeometryCandidate(
+            tray_id=index,
+            status=candidate.status,
+            message=candidate.message,
+            bbox=candidate.bbox,
+            center=candidate.center,
+            area=candidate.area,
+            corners=candidate.corners,
+        )
+        for index, candidate in enumerate(candidates, start=1)
+    ]
+    return [refine_candidate_edges(gray, candidate, config) for candidate in numbered]
+
+
+def build_dark_body_mask(gray: np.ndarray, config: TrayGeometryConfig) -> np.ndarray:
+    mask = (gray < config.dark_threshold).astype(np.uint8) * 255
+    kernel_size = max(3, config.morphology_kernel_px)
+    if kernel_size % 2 == 0:
+        kernel_size += 1
+    kernel = np.ones((kernel_size, kernel_size), np.uint8)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8), iterations=1)
+    return mask
+
+
+def find_active_x_ranges(mask: np.ndarray, config: TrayGeometryConfig) -> list[tuple[int, int]]:
+    active_threshold = mask.shape[0] * config.projection_active_ratio
+    projection = (mask > 0).sum(axis=0).astype(np.float32)
+    projection = smooth_projection(projection, config.projection_smooth_px)
+    active = projection > active_threshold
+    min_width = max(20, int(round(mask.shape[1] * config.min_width_ratio)))
+    return active_ranges(active, min_width=min_width, padding=config.x_padding_px)
+
+
+def candidate_from_x_range(
+    mask: np.ndarray,
+    image_shape: tuple[int, ...],
+    x_start: int,
+    x_end: int,
+    config: TrayGeometryConfig,
+) -> TrayGeometryCandidate | None:
+    image_height, image_width = image_shape[:2]
+    x_start = max(0, x_start)
+    x_end = min(image_width - 1, x_end)
+    if x_end <= x_start:
+        return None
+
+    band = mask[:, x_start:x_end + 1]
+    contours, _hierarchy = cv2.findContours(band, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return None
+
+    min_area = image_height * image_width * config.min_area_ratio
+    min_height = image_height * config.min_height_ratio
+    best: tuple[np.ndarray, float] | None = None
+    for contour in contours:
+        area = float(cv2.contourArea(contour))
+        if area < min_area:
+            continue
+        x, y, width, height = cv2.boundingRect(contour)
+        if height < min_height:
+            continue
+        if best is None or area > best[1]:
+            best = (contour, area)
+
+    if best is None:
+        return None
+
+    contour, area = best
+    x, y, width, height = cv2.boundingRect(contour)
+    x += x_start
+    center = (x + width * 0.5, y + height * 0.5)
+    return TrayGeometryCandidate(
+        tray_id=0,
+        status='coarse',
+        message='dark projection candidate',
+        bbox=(int(x), int(y), int(width), int(height)),
+        center=(float(center[0]), float(center[1])),
+        area=area,
+        corners=None,
+    )
+
+
+def split_wide_ranges(
+    mask: np.ndarray,
+    image_shape: tuple[int, ...],
+    ranges: list[tuple[int, int]],
+    existing: list[TrayGeometryCandidate],
+    config: TrayGeometryConfig,
+) -> list[TrayGeometryCandidate]:
+    """把粘连的宽横向区间拆成多个粗候选。"""
+
+    if len(existing) >= config.expected_tray_count:
+        return []
+    if not ranges:
+        return []
+
+    image_width = image_shape[1]
+    output: list[TrayGeometryCandidate] = []
+    expected_width = estimate_expected_width(image_width, existing)
+
+    for x_start, x_end in sorted(ranges, key=lambda item: item[1] - item[0], reverse=True):
+        width = x_end - x_start + 1
+        if width < expected_width * 1.45:
+            continue
+        split_count = int(round(width / max(1.0, expected_width)))
+        split_count = max(2, min(config.expected_tray_count, split_count))
+        for index in range(split_count):
+            sub_start = int(round(x_start + index * width / split_count))
+            sub_end = int(round(x_start + (index + 1) * width / split_count)) - 1
+            candidate = candidate_from_x_range(mask, image_shape, sub_start, sub_end, config)
+            if candidate is None:
+                continue
+            output.append(
+                TrayGeometryCandidate(
+                    tray_id=0,
+                    status='coarse_split',
+                    message='split from connected dark projection range',
+                    bbox=candidate.bbox,
+                    center=candidate.center,
+                    area=candidate.area,
+                    corners=candidate.corners,
+                )
+            )
+    return output
+
+
+def refine_candidate_edges(
+    gray: np.ndarray,
+    candidate: TrayGeometryCandidate,
+    config: TrayGeometryConfig,
+) -> TrayGeometryCandidate:
+    corners = fit_outer_corners_from_roi(gray, candidate.bbox, config)
+    if corners is None:
+        return TrayGeometryCandidate(
+            tray_id=candidate.tray_id,
+            status=candidate.status,
+            message=candidate.message + '; edge_fit_failed',
+            bbox=candidate.bbox,
+            center=candidate.center,
+            area=candidate.area,
+            corners=None,
+        )
+    return TrayGeometryCandidate(
+        tray_id=candidate.tray_id,
+        status='edge_fit',
+        message=candidate.message + '; fitted outer edge lines',
+        bbox=candidate.bbox,
+        center=candidate.center,
+        area=candidate.area,
+        corners=corners,
+    )
+
+
+def fit_outer_corners_from_roi(
+    gray: np.ndarray,
+    bbox: tuple[int, int, int, int],
+    config: TrayGeometryConfig,
+) -> np.ndarray | None:
+    x, y, width, height = pad_bbox(bbox, gray.shape[1], gray.shape[0], config.edge_roi_padding_px)
+    roi = gray[y:y + height, x:x + width]
+    if roi.size == 0:
+        return None
+
+    blurred = cv2.GaussianBlur(roi, (5, 5), 0)
+    edges = cv2.Canny(blurred, 45, 130)
+    min_line_length = max(30, int(round(min(width, height) * config.hough_min_line_length_ratio)))
+    lines = cv2.HoughLinesP(
+        edges,
+        rho=1,
+        theta=np.pi / 180.0,
+        threshold=config.hough_threshold,
+        minLineLength=min_line_length,
+        maxLineGap=config.hough_max_line_gap_px,
+    )
+    if lines is None:
+        return None
+
+    raw_lines = [
+        (
+            float(line[0][0] + x),
+            float(line[0][1] + y),
+            float(line[0][2] + x),
+            float(line[0][3] + y),
+        )
+        for line in lines
+    ]
+    sides = select_side_line_points(raw_lines, bbox)
+    fitted = {side: fit_line(points) for side, points in sides.items()}
+    if any(value is None for value in fitted.values()):
+        return None
+
+    top = fitted['top']
+    right = fitted['right']
+    bottom = fitted['bottom']
+    left = fitted['left']
+    assert top is not None and right is not None and bottom is not None and left is not None
+    corners = [
+        intersect_lines(top, left),
+        intersect_lines(top, right),
+        intersect_lines(bottom, right),
+        intersect_lines(bottom, left),
+    ]
+    if any(point is None for point in corners):
+        return None
+    points = np.asarray(corners, dtype=np.float32)
+    if not corners_are_reasonable(points, bbox):
+        return None
+    return points
+
+
+def select_side_line_points(
+    raw_lines: list[tuple[float, float, float, float]],
+    bbox: tuple[int, int, int, int],
+) -> dict[str, list[tuple[float, float]]]:
+    x, y, width, height = bbox
+    left_target = x
+    right_target = x + width
+    top_target = y
+    bottom_target = y + height
+    vertical: list[tuple[float, float, tuple[float, float, float, float]]] = []
+    horizontal: list[tuple[float, float, tuple[float, float, float, float]]] = []
+
+    for line in raw_lines:
+        x1, y1, x2, y2 = line
+        dx = x2 - x1
+        dy = y2 - y1
+        length = float(np.hypot(dx, dy))
+        if length < 25.0:
+            continue
+        angle = normalize_angle(float(np.degrees(np.arctan2(dy, dx))))
+        if abs(angle) > 65.0:
+            position = (x1 + x2) * 0.5
+            vertical.append((position, length, line))
+        elif abs(angle) < 25.0:
+            position = (y1 + y2) * 0.5
+            horizontal.append((position, length, line))
+
+    return {
+        'left': points_from_near_side(vertical, left_target, low_side=True),
+        'right': points_from_near_side(vertical, right_target, low_side=False),
+        'top': points_from_near_side(horizontal, top_target, low_side=True),
+        'bottom': points_from_near_side(horizontal, bottom_target, low_side=False),
+    }
+
+
+def points_from_near_side(
+    scored_lines: list[tuple[float, float, tuple[float, float, float, float]]],
+    target: float,
+    low_side: bool,
+) -> list[tuple[float, float]]:
+    if not scored_lines:
+        return []
+    scored_lines = sorted(scored_lines, key=lambda item: abs(item[0] - target))
+    anchor = scored_lines[0][0]
+    selected = [
+        line
+        for position, _length, line in scored_lines
+        if abs(position - anchor) <= 30.0
+    ]
+    selected = selected[:10]
+    points: list[tuple[float, float]] = []
+    for x1, y1, x2, y2 in selected:
+        points.append((x1, y1))
+        points.append((x2, y2))
+    return points
+
+
+def fit_line(points: list[tuple[float, float]]) -> tuple[float, float, float] | None:
+    if len(points) < 2:
+        return None
+    data = np.asarray(points, dtype=np.float32)
+    vx, vy, x0, y0 = cv2.fitLine(data, cv2.DIST_HUBER, 0, 0.01, 0.01).reshape(-1)
+    a = float(vy)
+    b = -float(vx)
+    c = float(vx * y0 - vy * x0)
+    norm = float(np.hypot(a, b))
+    if norm <= 1e-6:
+        return None
+    return a / norm, b / norm, c / norm
+
+
+def intersect_lines(
+    line_a: tuple[float, float, float],
+    line_b: tuple[float, float, float],
+) -> tuple[float, float] | None:
+    a1, b1, c1 = line_a
+    a2, b2, c2 = line_b
+    determinant = a1 * b2 - a2 * b1
+    if abs(determinant) < 1e-6:
+        return None
+    x = (b1 * c2 - b2 * c1) / determinant
+    y = (c1 * a2 - c2 * a1) / determinant
+    return float(x), float(y)
+
+
+def corners_are_reasonable(points: np.ndarray, bbox: tuple[int, int, int, int]) -> bool:
+    x, y, width, height = bbox
+    margin = max(width, height) * 0.30
+    if np.any(points[:, 0] < x - margin) or np.any(points[:, 0] > x + width + margin):
+        return False
+    if np.any(points[:, 1] < y - margin) or np.any(points[:, 1] > y + height + margin):
+        return False
+    area = abs(float(cv2.contourArea(points.astype(np.float32))))
+    return area >= width * height * 0.35
+
+
+def pad_bbox(
+    bbox: tuple[int, int, int, int],
+    image_width: int,
+    image_height: int,
+    padding: int,
+) -> tuple[int, int, int, int]:
+    x, y, width, height = bbox
+    x0 = max(0, x - padding)
+    y0 = max(0, y - padding)
+    x1 = min(image_width, x + width + padding)
+    y1 = min(image_height, y + height + padding)
+    return x0, y0, x1 - x0, y1 - y0
+
+
+def normalize_angle(angle: float) -> float:
+    while angle <= -90.0:
+        angle += 180.0
+    while angle > 90.0:
+        angle -= 180.0
+    return angle
+
+
+def estimate_expected_width(
+    image_width: int,
+    existing: list[TrayGeometryCandidate],
+) -> float:
+    widths = [candidate.bbox[2] for candidate in existing if candidate.bbox[2] > 0]
+    if widths:
+        median_width = float(np.median(np.asarray(widths, dtype=np.float32)))
+        if median_width < image_width * 0.55:
+            return median_width
+    return image_width / 3.4
+
+
+def dedupe_candidates(candidates: list[TrayGeometryCandidate]) -> list[TrayGeometryCandidate]:
+    output: list[TrayGeometryCandidate] = []
+    for candidate in sorted(candidates, key=lambda item: item.area, reverse=True):
+        if any(bbox_iou(candidate.bbox, other.bbox) > 0.35 for other in output):
+            continue
+        output.append(candidate)
+    return output
+
+
+def bbox_iou(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> float:
+    ax, ay, aw, ah = a
+    bx, by, bw, bh = b
+    left = max(ax, bx)
+    top = max(ay, by)
+    right = min(ax + aw, bx + bw)
+    bottom = min(ay + ah, by + bh)
+    intersection = max(0, right - left) * max(0, bottom - top)
+    union = aw * ah + bw * bh - intersection
+    return intersection / max(1, union)
+
+
+def smooth_projection(projection: np.ndarray, kernel_size: int) -> np.ndarray:
+    kernel_size = max(1, kernel_size)
+    kernel = np.ones(kernel_size, dtype=np.float32) / float(kernel_size)
+    return np.convolve(projection, kernel, mode='same')
+
+
+def active_ranges(active: np.ndarray, min_width: int, padding: int) -> list[tuple[int, int]]:
+    ranges: list[tuple[int, int]] = []
+    start: int | None = None
+    for index, value in enumerate(active):
+        if bool(value) and start is None:
+            start = index
+        elif not bool(value) and start is not None:
+            if index - start >= min_width:
+                ranges.append((max(0, start - padding), min(len(active) - 1, index + padding)))
+            start = None
+    if start is not None and len(active) - start >= min_width:
+        ranges.append((max(0, start - padding), len(active) - 1))
+    return ranges
