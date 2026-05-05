@@ -32,10 +32,10 @@ setup(
             'depth_point_probe = sorting_vision.probes.depth_point_probe:main',
             'grid_debug_publisher = sorting_vision.nodes.grid_debug_publisher:main',
             'mock_matrix_publisher = sorting_vision.nodes.mock_matrix_publisher:main',
-            'offline_tray_debug = sorting_vision.offline_tray_debug:main',
+            'offline_tray_debug = sorting_vision.debug_tools.legacy.offline_tray_debug:main',
             'real_matrix_publisher = sorting_vision.nodes.real_matrix_publisher:main',
             'tray_rectify_debug = sorting_vision.debug_tools.tray_rectify_debug:main',
-            'tray_grid_debug = sorting_vision.tray_grid_debug:main',
+            'tray_grid_debug = sorting_vision.debug_tools.legacy.tray_grid_debug:main',
         ],
     },
 )

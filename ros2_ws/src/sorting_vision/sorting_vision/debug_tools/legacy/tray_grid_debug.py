@@ -22,9 +22,9 @@ import numpy as np
 import yaml
 
 if __package__ in (None, ''):
-    sys.path.append(str(Path(__file__).resolve().parents[1]))
+    sys.path.append(str(Path(__file__).resolve().parents[3]))
 
-from sorting_vision.offline_tray_debug import (
+from sorting_vision.debug_tools.legacy.offline_tray_debug import (
     OfflineDebugConfig,
     detect_tray_candidates,
     detect_warped_hole_centers,
@@ -75,8 +75,12 @@ class GridFit:
 
     warped_to_rectified: np.ndarray
     rectified_to_warped: np.ndarray
+    detected_count: int
     matched_count: int
     inlier_count: int
+    inlier_ratio: float
+    reprojection_error_mean_px: float
+    reprojection_error_max_px: float
 
 
 @dataclass(frozen=True)
@@ -198,6 +202,18 @@ def process_image(
                     stats.horizontal_angle_median
                 ),
                 'grid_rectified': int(rectified_ok),
+                'detected_centers': grid_fit.detected_count if grid_fit else 0,
+                'matched_centers': grid_fit.matched_count if grid_fit else 0,
+                'inlier_count': grid_fit.inlier_count if grid_fit else 0,
+                'inlier_ratio': _format_optional(
+                    grid_fit.inlier_ratio if grid_fit else None
+                ),
+                'reprojection_error_mean_px': _format_optional(
+                    grid_fit.reprojection_error_mean_px if grid_fit else None
+                ),
+                'reprojection_error_max_px': _format_optional(
+                    grid_fit.reprojection_error_max_px if grid_fit else None
+                ),
                 'candidate_center_x': f'{candidate.center_x:.2f}',
                 'candidate_area': f'{candidate.area:.2f}',
             }
@@ -215,6 +231,12 @@ def process_image(
                 'vertical_angle_median': '',
                 'horizontal_angle_median': '',
                 'grid_rectified': 0,
+                'detected_centers': 0,
+                'matched_centers': 0,
+                'inlier_count': 0,
+                'inlier_ratio': '',
+                'reprojection_error_mean_px': '',
+                'reprojection_error_max_px': '',
                 'candidate_center_x': '',
                 'candidate_area': '',
             }
@@ -361,13 +383,28 @@ def rectify_by_internal_grid(
     rectified = cv2.warpPerspective(warped, matrix, (width, height))
     draw_ideal_grid(rectified)
     inlier_count = int(inliers.sum())
-    _draw_status(rectified, f'inliers={inlier_count}/{len(source_points)}', True)
+    projected = cv2.perspectiveTransform(source.reshape(-1, 1, 2), matrix).reshape(-1, 2)
+    errors = np.linalg.norm(projected - target, axis=1)
+    inlier_mask = inliers.reshape(-1).astype(bool)
+    inlier_errors = errors[inlier_mask]
+    mean_error = float(np.mean(inlier_errors)) if inlier_errors.size else 0.0
+    max_error = float(np.max(inlier_errors)) if inlier_errors.size else 0.0
+    inlier_ratio = inlier_count / max(1, len(source_points))
+    _draw_status(
+        rectified,
+        f'inliers={inlier_count}/{len(source_points)} err={mean_error:.1f}px',
+        True,
+    )
     inverse = np.linalg.inv(matrix)
     fit = GridFit(
         warped_to_rectified=matrix,
         rectified_to_warped=inverse,
+        detected_count=len(detected),
         matched_count=len(source_points),
         inlier_count=inlier_count,
+        inlier_ratio=inlier_ratio,
+        reprojection_error_mean_px=mean_error,
+        reprojection_error_max_px=max_error,
     )
     return rectified, fit
 
@@ -720,6 +757,12 @@ def write_summary(path: Path, rows: list[dict[str, object]]) -> None:
         'vertical_angle_median',
         'horizontal_angle_median',
         'grid_rectified',
+        'detected_centers',
+        'matched_centers',
+        'inlier_count',
+        'inlier_ratio',
+        'reprojection_error_mean_px',
+        'reprojection_error_max_px',
         'candidate_center_x',
         'candidate_area',
     ]
@@ -830,7 +873,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     )
     parser.add_argument(
         '--config',
-        default='ros2_ws/src/sorting_vision/config/tray_grid_debug.yaml',
+        default='ros2_ws/src/sorting_vision/config/legacy/tray_grid_debug.yaml',
         help='调试配置路径。',
     )
     parser.add_argument(

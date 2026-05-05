@@ -30,7 +30,7 @@ offline_tray_debug:
   # 当前样本是浅色地面上的深色塑料苗盘，所以先按暗像素列分割苗盘候选。
   dark_pixel_threshold: 75
   column_active_ratio: 0.12
-  projection_smooth_px: 31
+  projection_smooth_px: 11
   x_range_padding_px: 8
   merge_kernel_px: 23
 

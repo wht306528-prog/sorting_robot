@@ -67,6 +67,7 @@ sorting_vision/
   nodes/         # 正式 ROS2 节点
   algorithms/    # 可复用视觉算法
   debug_tools/   # 离线调试脚本
+    legacy/      # 历史离线实验
 ```
 
 已迁移：
@@ -81,15 +82,17 @@ sorting_vision/
 - `algorithms/camera_model.py`
 - `algorithms/detector.py`
 - `debug_tools/tray_rectify_debug.py`
+- `debug_tools/legacy/offline_tray_debug.py`
+- `debug_tools/legacy/tray_grid_debug.py`
+
+已迁移配置：
+
+- `config/legacy/offline_tray_debug.yaml`
+- `config/legacy/tray_grid_debug.yaml`
 
 已新增新算法空入口：
 
 - `algorithms/tray_geometry.py`
-
-暂留根目录，等待单独处理：
-
-- `offline_tray_debug.py`
-- `tray_grid_debug.py`
 
 迁移原则：
 
