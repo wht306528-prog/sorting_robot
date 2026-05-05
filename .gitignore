@@ -15,6 +15,7 @@ htmlcov/
 .vscode/
 .idea/
 .codex
+.claude/
 
 # OS and temporary files
 .DS_Store

@@ -10,6 +10,10 @@
    当前决策、近期待办、暂缓事项和不建议继续投入的方向。
 3. [`current/session_handoff.md`](current/session_handoff.md)
    新窗口 AI 或换人接手时的项目交接说明。
+4. [`current/vision_structure_plan.md`](current/vision_structure_plan.md)
+   `sorting_vision` 的职责划分、整理计划和视觉算法推进顺序。
+5. [`current/uncommitted_triage.md`](current/uncommitted_triage.md)
+   当前未提交视觉实验和结构整理内容的分诊说明。
 
 ## 操作指南
 
@@ -45,4 +49,3 @@ samples/debug_/_review/README.md
 cd /home/wht/sorting_robot
 python3 scripts/archive_debug_outputs.py
 ```
-
