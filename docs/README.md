@@ -23,6 +23,7 @@
 - [`guides/hardware_bringup.md`](guides/hardware_bringup.md)：硬件和相机启动。
 - [`guides/runtime_configuration.md`](guides/runtime_configuration.md)：运行参数。
 - [`guides/sample_collection.md`](guides/sample_collection.md)：样本采集。
+- [`guides/yolo_debug.md`](guides/yolo_debug.md)：YOLO 离线检测调试。
 
 ## 参考资料
 

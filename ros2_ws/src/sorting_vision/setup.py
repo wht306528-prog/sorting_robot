@@ -37,6 +37,7 @@ setup(
             'real_matrix_publisher = sorting_vision.nodes.real_matrix_publisher:main',
             'tray_rectify_debug = sorting_vision.debug_tools.tray_rectify_debug:main',
             'tray_grid_debug = sorting_vision.debug_tools.legacy.tray_grid_debug:main',
+            'yolo_object_debug = sorting_vision.debug_tools.yolo_object_debug:main',
         ],
     },
 )
