@@ -34,6 +34,7 @@ setup(
             'mock_matrix_publisher = sorting_vision.node:main',
             'offline_tray_debug = sorting_vision.offline_tray_debug:main',
             'real_matrix_publisher = sorting_vision.real_matrix_publisher:main',
+            'tray_rectify_debug = sorting_vision.tray_rectify_debug:main',
             'tray_grid_debug = sorting_vision.tray_grid_debug:main',
         ],
     },
