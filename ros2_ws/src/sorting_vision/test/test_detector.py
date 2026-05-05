@@ -2,7 +2,7 @@
 
 from sorting_interfaces.msg import TrayCell
 
-from sorting_vision.detector import (
+from sorting_vision.algorithms.detector import (
     DetectionConfig,
     ImageView,
     RuleBasedTrayDetector,

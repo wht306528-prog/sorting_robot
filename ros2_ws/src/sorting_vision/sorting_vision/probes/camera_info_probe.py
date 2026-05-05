@@ -24,7 +24,7 @@ from rclpy.node import Node
 import rclpy
 from sensor_msgs.msg import CameraInfo
 
-from sorting_vision.camera_model import CameraIntrinsics, CameraIntrinsicsCache
+from sorting_vision.algorithms.camera_model import CameraIntrinsics, CameraIntrinsicsCache
 
 
 class CameraInfoProbe(Node):

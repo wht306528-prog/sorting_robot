@@ -55,9 +55,10 @@
 
 这类文件适合沉淀成可复用算法/模型代码。
 
-## 目标结构
+## 已开始实施的结构
 
-短期不拆 ROS2 包，只在 `sorting_vision/sorting_vision/` 内部按职责分层：
+短期不拆 ROS2 包，只在 `sorting_vision/sorting_vision/` 内部按职责分层。
+当前已建立：
 
 ```text
 sorting_vision/
@@ -68,9 +69,31 @@ sorting_vision/
   debug_tools/   # 离线调试脚本
 ```
 
+已迁移：
+
+- `probes/camera_info_probe.py`
+- `probes/camera_input_probe.py`
+- `probes/depth_point_probe.py`
+- `capture/capture_rgbd_sample.py`
+- `nodes/mock_matrix_publisher.py`
+- `nodes/real_matrix_publisher.py`
+- `nodes/grid_debug_publisher.py`
+- `algorithms/camera_model.py`
+- `algorithms/detector.py`
+- `debug_tools/tray_rectify_debug.py`
+
+已新增新算法空入口：
+
+- `algorithms/tray_geometry.py`
+
+暂留根目录，等待单独处理：
+
+- `offline_tray_debug.py`
+- `tray_grid_debug.py`
+
 迁移原则：
 
-1. 先稳定算法，再移动文件。
+1. 已稳定或已单独提交的工具先移动。
 2. 每次只移动一类文件，并同步修改 `setup.py` 入口。
 3. 未稳定的实验脚本不注册成正式入口，最多保留离线命令。
 4. debug 输出必须进入 `samples/debug_/runs/<run_name>/`，review 输出进入 `samples/debug_/_review/runs/<run_name>/`。
@@ -95,7 +118,6 @@ sorting_vision/
 ## 暂不做
 
 - 暂不新建一堆空 ROS2 包。
-- 暂不把 `sorting_vision` 文件大规模搬家。
 - 暂不推进矩阵 overlay。
 - 暂不推进机械臂坐标转换。
 - 暂不把离线脚本包装成最终识别节点。

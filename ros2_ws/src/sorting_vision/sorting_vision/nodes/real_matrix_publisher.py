@@ -14,8 +14,8 @@ import rclpy
 from sensor_msgs.msg import CameraInfo, Image
 
 from sorting_interfaces.msg import TrayMatrix
-from sorting_vision.camera_model import CameraIntrinsicsCache
-from sorting_vision.detector import (
+from sorting_vision.algorithms.camera_model import CameraIntrinsicsCache
+from sorting_vision.algorithms.detector import (
     DetectionConfig,
     ImageView,
     RuleBasedTrayDetector,

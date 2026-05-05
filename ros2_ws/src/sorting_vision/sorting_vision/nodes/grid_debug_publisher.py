@@ -13,7 +13,7 @@ import rclpy
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
 
-from sorting_vision.detector import TRAY_COLS, TRAY_ROWS, TrayRoi
+from sorting_vision.algorithms.detector import TRAY_COLS, TRAY_ROWS, TrayRoi
 
 
 class GridDebugPublisher(Node):

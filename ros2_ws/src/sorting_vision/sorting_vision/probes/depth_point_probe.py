@@ -11,8 +11,8 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import CameraInfo, Image
 
-from sorting_vision.camera_model import CameraIntrinsics, intrinsics_from_camera_info
-from sorting_vision.detector import ImageView, sample_depth_mm
+from sorting_vision.algorithms.camera_model import CameraIntrinsics, intrinsics_from_camera_info
+from sorting_vision.algorithms.detector import ImageView, sample_depth_mm
 
 
 class DepthPointProbe(Node):
