@@ -26,6 +26,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'aruco_reference_debug = sorting_vision.debug_tools.aruco_reference_debug:main',
             'camera_info_probe = sorting_vision.probes.camera_info_probe:main',
             'camera_input_probe = sorting_vision.probes.camera_input_probe:main',
             'capture_rgbd_sample = sorting_vision.capture.capture_rgbd_sample:main',
