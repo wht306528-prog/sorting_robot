@@ -34,19 +34,27 @@ def main(argv: list[str] | None = None) -> None:
     )
 
     overview_tiles: list[np.ndarray] = []
+    final_effect_tiles_by_sample: dict[str, list[np.ndarray]] = {}
     for image_path in image_paths:
         image = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
         if image is None:
             raise RuntimeError(f'读取图片失败：{image_path}')
 
         result = fit_tray_edges(image, config)
-        case_dir = output_dir / safe_path_name(image_path.parent.parent.name) / safe_path_name(image_path.parent.name)
+        sample_name = safe_path_name(image_path.parent.parent.name)
+        tray_name = safe_path_name(image_path.parent.name)
+        case_dir = output_dir / sample_name / tray_name
         case_dir.mkdir(parents=True, exist_ok=True)
         write_debug_images(case_dir, image, result)
+        final_effect = make_final_effect(image, result)
+        final_effect_tiles_by_sample.setdefault(sample_name, []).append(
+            make_labeled_tile(final_effect, f'{tray_name}: {result.status}', 360)
+        )
         overview_tiles.append(make_labeled_tile(make_compare(image, result), f'{image_path.parent.parent.name}/{image_path.parent.name}: {result.status}', 520))
         print(f'{image_path}: {result.status} {result.message}')
 
     cv2.imwrite(str(output_dir / 'tray_edge_fit_overview.jpg'), make_overview(overview_tiles, columns=2))
+    write_final_effects(output_dir, final_effect_tiles_by_sample)
     print(f'处理单盘数量：{len(image_paths)}')
     print(f'输出目录：{output_dir}')
 
@@ -64,6 +72,29 @@ def write_debug_images(output_dir: Path, image: np.ndarray, result: TrayEdgeFitR
         cv2.putText(failed, result.message[:70], (12, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.62, (0, 0, 255), 2, cv2.LINE_AA)
         cv2.imwrite(str(output_dir / '06_rectified.jpg'), failed)
     cv2.imwrite(str(output_dir / '07_compare.jpg'), make_compare(image, result))
+
+
+def write_final_effects(output_dir: Path, tiles_by_sample: dict[str, list[np.ndarray]]) -> None:
+    final_dir = output_dir / 'final_effects'
+    final_dir.mkdir(parents=True, exist_ok=True)
+    overview_tiles: list[np.ndarray] = []
+    for sample_name, tiles in sorted(tiles_by_sample.items()):
+        merged = make_overview(tiles, columns=3)
+        path = final_dir / f'{sample_name}_final_effect.jpg'
+        cv2.imwrite(str(path), merged)
+        overview_tiles.append(make_labeled_tile(merged, sample_name, 720))
+    cv2.imwrite(str(final_dir / '_all_samples_final_effects.jpg'), make_overview(overview_tiles, columns=1))
+
+
+def make_final_effect(image: np.ndarray, result: TrayEdgeFitResult) -> np.ndarray:
+    fitted = draw_fitted_lines(image, result)
+    rectified = result.rectified if result.rectified is not None else image
+    return horizontal_panels(
+        [
+            make_labeled_tile(fitted, 'fitted border', 260),
+            make_labeled_tile(rectified, 'rectified', 260),
+        ]
+    )
 
 
 def draw_contour(image: np.ndarray, result: TrayEdgeFitResult) -> np.ndarray:
@@ -146,6 +177,10 @@ def make_compare(image: np.ndarray, result: TrayEdgeFitResult) -> np.ndarray:
         make_labeled_tile(draw_fitted_lines(image, result), '05 fitted lines', 230),
         make_labeled_tile(rectified, '06 rectified', 230),
     ]
+    return horizontal_panels(panels)
+
+
+def horizontal_panels(panels: list[np.ndarray]) -> np.ndarray:
     height = max(panel.shape[0] for panel in panels)
     width = sum(panel.shape[1] for panel in panels)
     canvas = np.full((height, width, 3), 245, dtype=np.uint8)
