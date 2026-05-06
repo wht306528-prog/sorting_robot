@@ -21,6 +21,13 @@ from sorting_vision.algorithms.tray_edge_fit import TrayEdgeFitConfig, fit_tray_
 from sorting_vision.algorithms.tray_hole_grid import TrayHoleGridConfig
 
 
+CLASS_IDS = {
+    'empty': 0,
+    'white_ball': 1,
+    'yellow_ball': 2,
+}
+
+
 class PingpongRealtimeNode(Node):
     """Subscribe to RGB images, classify one tray, and publish debug output."""
 
@@ -132,6 +139,8 @@ class PingpongRealtimeNode(Node):
             'white_ball': sum(1 for cell in cells if cell.class_name == 'white_ball'),
             'empty': sum(1 for cell in cells if cell.class_name == 'empty'),
         }
+        rows = self._int_parameter('rows', 10)
+        cols = self._int_parameter('cols', 5)
         return {
             'frame_index': self._frame_index,
             'stamp': {
@@ -141,11 +150,15 @@ class PingpongRealtimeNode(Node):
             'status': status,
             'message': status_message,
             'counts': counts,
+            'class_ids': CLASS_IDS,
+            'matrix': class_matrix(cells, rows, cols),
+            'matrix_ids': class_id_matrix(cells, rows, cols),
             'cells': [
                 {
                     'row': cell.row,
                     'col': cell.col,
                     'class_name': cell.class_name,
+                    'class_id': CLASS_IDS.get(cell.class_name, -1),
                     'confidence': round(cell.confidence, 3),
                     'u_rect': round(cell.u, 3),
                     'v_rect': round(cell.v, 3),
@@ -223,6 +236,22 @@ def bgr_to_ros_image(image: np.ndarray, source_message: Image) -> Image:
     output.step = int(image.shape[1] * 3)
     output.data = image.astype(np.uint8).tobytes()
     return output
+
+
+def class_matrix(cells, rows: int, cols: int) -> list[list[str]]:
+    matrix = [['unknown' for _col in range(cols)] for _row in range(rows)]
+    for cell in cells:
+        if 1 <= cell.row <= rows and 1 <= cell.col <= cols:
+            matrix[cell.row - 1][cell.col - 1] = cell.class_name
+    return matrix
+
+
+def class_id_matrix(cells, rows: int, cols: int) -> list[list[int]]:
+    matrix = [[-1 for _col in range(cols)] for _row in range(rows)]
+    for cell in cells:
+        if 1 <= cell.row <= rows and 1 <= cell.col <= cols:
+            matrix[cell.row - 1][cell.col - 1] = CLASS_IDS.get(cell.class_name, -1)
+    return matrix
 
 
 def main(args: list[str] | None = None) -> None:
