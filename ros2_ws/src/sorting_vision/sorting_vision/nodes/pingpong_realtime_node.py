@@ -12,6 +12,7 @@ from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
 
+from sorting_interfaces.msg import TrayCell, TrayMatrix
 from sorting_vision.algorithms.pingpong_detector import (
     PingpongDetectorConfig,
     detect_pingpong_cells,
@@ -38,6 +39,8 @@ class PingpongRealtimeNode(Node):
         self._color_topic = self._string_parameter('color_image_topic', '/camera/camera/color/image_raw')
         self._debug_topic = self._string_parameter('debug_image_topic', '/sorting/pingpong/debug_image')
         self._cells_topic = self._string_parameter('cells_json_topic', '/sorting/pingpong/cells_json')
+        self._tray_matrix_topic = self._string_parameter('tray_matrix_topic', '/sorting/tray_matrix')
+        self._active_tray_id = max(1, min(3, self._int_parameter('active_tray_id', 1)))
         self._process_every_n = max(1, self._int_parameter('process_every_n_frames', 3))
         self._log_every_sec = max(0.5, self._float_parameter('log_every_sec', 2.0))
         self._frame_index = 0
@@ -48,6 +51,7 @@ class PingpongRealtimeNode(Node):
 
         self._debug_publisher = self.create_publisher(Image, self._debug_topic, 10)
         self._cells_publisher = self.create_publisher(String, self._cells_topic, 10)
+        self._matrix_publisher = self.create_publisher(TrayMatrix, self._tray_matrix_topic, 10)
         self._subscription = self.create_subscription(
             Image,
             self._color_topic,
@@ -58,12 +62,16 @@ class PingpongRealtimeNode(Node):
         self.get_logger().info(f'正在订阅 RGB 图像：{self._color_topic}')
         self.get_logger().info(f'正在发布乒乓球标注图：{self._debug_topic}')
         self.get_logger().info(f'正在发布乒乓球 JSON：{self._cells_topic}')
+        self.get_logger().info(f'正在发布标准 TrayMatrix：{self._tray_matrix_topic}')
+        self.get_logger().info(f'当前实时识别结果写入 tray_id={self._active_tray_id}，其他苗盘补 empty')
         self.get_logger().info(f'每 {self._process_every_n} 帧处理一次')
 
     def _declare_parameters(self) -> None:
         self.declare_parameter('color_image_topic', '/camera/camera/color/image_raw')
         self.declare_parameter('debug_image_topic', '/sorting/pingpong/debug_image')
         self.declare_parameter('cells_json_topic', '/sorting/pingpong/cells_json')
+        self.declare_parameter('tray_matrix_topic', '/sorting/tray_matrix')
+        self.declare_parameter('active_tray_id', 1)
         self.declare_parameter('process_every_n_frames', 3)
         self.declare_parameter('log_every_sec', 2.0)
         self.declare_parameter('rows', 10)
@@ -121,6 +129,7 @@ class PingpongRealtimeNode(Node):
 
         self._publish_debug_image(debug_image, message)
         self._publish_cells(payload)
+        self._publish_tray_matrix(message, payload)
         self._log_summary(payload)
 
     def _publish_debug_image(self, image, source_message: Image) -> None:
@@ -132,6 +141,16 @@ class PingpongRealtimeNode(Node):
         message = String()
         message.data = json.dumps(payload, ensure_ascii=False)
         self._cells_publisher.publish(message)
+
+    def _publish_tray_matrix(self, source_message: Image, payload: dict[str, object]) -> None:
+        matrix = TrayMatrix()
+        matrix.header = source_message.header
+        matrix.frame_id = int(payload['frame_index'])
+        matrix.cells = tray_matrix_cells(
+            payload_cells=payload['cells'],
+            active_tray_id=self._active_tray_id,
+        )
+        self._matrix_publisher.publish(matrix)
 
     def _payload(self, message: Image, status: str, status_message: str, cells) -> dict[str, object]:
         counts = {
@@ -252,6 +271,36 @@ def class_id_matrix(cells, rows: int, cols: int) -> list[list[int]]:
         if 1 <= cell.row <= rows and 1 <= cell.col <= cols:
             matrix[cell.row - 1][cell.col - 1] = CLASS_IDS.get(cell.class_name, -1)
     return matrix
+
+
+def tray_matrix_cells(payload_cells: list[dict[str, object]], active_tray_id: int) -> list[TrayCell]:
+    by_position = {
+        (int(cell['row']), int(cell['col'])): cell
+        for cell in payload_cells
+    }
+    cells: list[TrayCell] = []
+    for tray_id in range(1, 4):
+        for row in range(1, 11):
+            for col in range(1, 6):
+                source = by_position.get((row, col)) if tray_id == active_tray_id else None
+                cell = TrayCell()
+                cell.tray_id = tray_id
+                cell.col = col
+                cell.row = row
+                if source is None:
+                    cell.class_id = CLASS_IDS['empty']
+                    cell.confidence = 1.0 if tray_id != active_tray_id else 0.0
+                    cell.u = 0.0
+                    cell.v = 0.0
+                    cell.z = 0.0
+                else:
+                    cell.class_id = int(source['class_id'])
+                    cell.confidence = float(source['confidence'])
+                    cell.u = float(source['u_rect'])
+                    cell.v = float(source['v_rect'])
+                    cell.z = 0.0
+                cells.append(cell)
+    return cells
 
 
 def main(args: list[str] | None = None) -> None:
