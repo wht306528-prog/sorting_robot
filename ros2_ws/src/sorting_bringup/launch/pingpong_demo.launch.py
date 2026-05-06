@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
 def generate_launch_description() -> LaunchDescription:
+    start_camera = LaunchConfiguration('start_camera')
     video_device = LaunchConfiguration('video_device')
     image_topic = LaunchConfiguration('image_topic')
     active_tray_id = LaunchConfiguration('active_tray_id')
@@ -18,6 +20,7 @@ def generate_launch_description() -> LaunchDescription:
 
     return LaunchDescription(
         [
+            DeclareLaunchArgument('start_camera', default_value='true'),
             DeclareLaunchArgument('video_device', default_value='/dev/video0'),
             DeclareLaunchArgument('image_topic', default_value='/image_raw'),
             DeclareLaunchArgument('active_tray_id', default_value='1'),
@@ -29,6 +32,7 @@ def generate_launch_description() -> LaunchDescription:
                 executable='v4l2_camera_node',
                 name='pingpong_usb_camera',
                 output='screen',
+                condition=IfCondition(start_camera),
                 parameters=[
                     {
                         'video_device': video_device,
