@@ -26,6 +26,43 @@ usage() {
 EOF
 }
 
+print_quick_commands() {
+  cat <<EOF
+
+========== 现场常用命令 ==========
+1. 创建/修改现场配置:
+   cp config/pingpong_demo.env.example config/pingpong_demo.env
+   nano config/pingpong_demo.env
+
+2. 只检查配置，不启动:
+   DEMO_DRY_RUN=1 scripts/demo_pingpong.sh
+
+3. 查看 USB 相机:
+   ls /dev/video*
+   v4l2-ctl --list-devices
+
+4. 查看 ROS2 图像和矩阵 topic:
+   source /opt/ros/humble/setup.sh
+   source $WORKSPACE_DIR/install/setup.sh
+   ros2 topic list
+   ros2 topic hz /image_raw
+   ros2 topic echo /sorting/tray_matrix
+
+5. 本机模拟 F407 接收:
+   nc -l $F407_PORT
+
+6. 真实 F407/W5500 地址配置:
+   nano config/pingpong_demo.env
+   # 修改 F407_HOST 和 F407_PORT
+
+7. 当前将使用:
+   F407_HOST=$F407_HOST
+   F407_PORT=$F407_PORT
+==================================
+
+EOF
+}
+
 info() {
   echo "[INFO] $*"
 }
@@ -112,6 +149,8 @@ fi
 info "  active_tray_id=$ACTIVE_TRAY_ID"
 info "  process_every_n_frames=$PROCESS_EVERY_N_FRAMES"
 info "  f407=$F407_HOST:$F407_PORT"
+
+print_quick_commands
 
 export WORKSPACE_DIR ROS_SETUP ACTIVE_TRAY_ID PROCESS_EVERY_N_FRAMES F407_HOST F407_PORT
 
