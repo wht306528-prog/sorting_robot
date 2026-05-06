@@ -38,6 +38,7 @@ def main(argv: list[str] | None = None) -> None:
         cols=args.cols,
         roi_radius_ratio=args.roi_radius_ratio,
         min_ball_ratio=args.min_ball_ratio,
+        min_white_ratio=args.min_white_ratio,
         min_color_margin=args.min_color_margin,
         hole_grid=TrayHoleGridConfig(rows=args.rows, cols=args.cols),
     )
@@ -101,6 +102,8 @@ def cell_row(sample_name: str, tray_id: str, cell: PingpongCell) -> dict[str, ob
         'yellow_ratio': f'{cell.yellow_ratio:.4f}',
         'white_ratio': f'{cell.white_ratio:.4f}',
         'ball_ratio': f'{cell.ball_ratio:.4f}',
+        'yellow_component_ratio': f'{cell.yellow_component_ratio:.4f}',
+        'white_component_ratio': f'{cell.white_component_ratio:.4f}',
     }
 
 
@@ -122,6 +125,8 @@ def write_summary(path: Path, rows: list[dict[str, object]]) -> None:
         'yellow_ratio',
         'white_ratio',
         'ball_ratio',
+        'yellow_component_ratio',
+        'white_component_ratio',
     ]
     with path.open('w', encoding='utf-8', newline='') as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
@@ -197,7 +202,8 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument('--rows', type=int, default=10, help='苗盘行数。')
     parser.add_argument('--cols', type=int, default=5, help='苗盘列数。')
     parser.add_argument('--roi-radius-ratio', type=float, default=0.34, help='穴位检测圆半径占格距比例。')
-    parser.add_argument('--min-ball-ratio', type=float, default=0.10, help='判定有球的最小颜色面积比例。')
+    parser.add_argument('--min-ball-ratio', type=float, default=0.16, help='判定黄球/通用有球的最小颜色面积比例。')
+    parser.add_argument('--min-white-ratio', type=float, default=0.30, help='判定白球的最小白色面积比例。')
     parser.add_argument('--min-color-margin', type=float, default=0.035, help='黄/白比例差最小值。')
     return parser.parse_args(argv)
 

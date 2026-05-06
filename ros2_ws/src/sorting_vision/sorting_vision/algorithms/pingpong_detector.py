@@ -20,7 +20,10 @@ class PingpongDetectorConfig:
     rows: int = 10
     cols: int = 5
     roi_radius_ratio: float = 0.34
-    min_ball_ratio: float = 0.10
+    min_ball_ratio: float = 0.16
+    min_white_ratio: float = 0.30
+    min_white_component_ratio: float = 0.24
+    min_yellow_component_ratio: float = 0.12
     min_color_margin: float = 0.035
     hole_grid: TrayHoleGridConfig = TrayHoleGridConfig()
 
@@ -36,6 +39,8 @@ class PingpongCell:
     yellow_ratio: float
     white_ratio: float
     ball_ratio: float
+    yellow_component_ratio: float
+    white_component_ratio: float
 
 
 @dataclass(frozen=True)
@@ -113,7 +118,7 @@ def classify_cell(
     y1 = min(height, v + radius + 1)
     patch = image[y0:y1, x0:x1]
     if patch.size == 0:
-        return PingpongCell(center.row, center.col, center.u, center.v, CLASS_EMPTY, 0.20, 0.0, 0.0, 0.0)
+        return PingpongCell(center.row, center.col, center.u, center.v, CLASS_EMPTY, 0.20, 0.0, 0.0, 0.0, 0.0, 0.0)
 
     local_u = u - x0
     local_v = v - y0
@@ -121,7 +126,7 @@ def classify_cell(
     circle = (xx - local_u) ** 2 + (yy - local_v) ** 2 <= radius ** 2
     valid_count = int(np.count_nonzero(circle))
     if valid_count <= 0:
-        return PingpongCell(center.row, center.col, center.u, center.v, CLASS_EMPTY, 0.20, 0.0, 0.0, 0.0)
+        return PingpongCell(center.row, center.col, center.u, center.v, CLASS_EMPTY, 0.20, 0.0, 0.0, 0.0, 0.0, 0.0)
 
     hsv = cv2.cvtColor(patch, cv2.COLOR_BGR2HSV)
     hue = hsv[:, :, 0]
@@ -136,8 +141,17 @@ def classify_cell(
     yellow_ratio = float(np.count_nonzero(yellow)) / valid_count
     white_ratio = float(np.count_nonzero(white)) / valid_count
     ball_ratio = yellow_ratio + white_ratio
+    yellow_component_ratio = largest_component_ratio(yellow, circle, valid_count)
+    white_component_ratio = largest_component_ratio(white, circle, valid_count)
 
-    class_name, confidence = classify_ratios(yellow_ratio, white_ratio, ball_ratio, config)
+    class_name, confidence = classify_ratios(
+        yellow_ratio=yellow_ratio,
+        white_ratio=white_ratio,
+        ball_ratio=ball_ratio,
+        yellow_component_ratio=yellow_component_ratio,
+        white_component_ratio=white_component_ratio,
+        config=config,
+    )
     return PingpongCell(
         row=center.row,
         col=center.col,
@@ -148,32 +162,59 @@ def classify_cell(
         yellow_ratio=yellow_ratio,
         white_ratio=white_ratio,
         ball_ratio=ball_ratio,
+        yellow_component_ratio=yellow_component_ratio,
+        white_component_ratio=white_component_ratio,
     )
+
+
+def largest_component_ratio(mask: np.ndarray, circle: np.ndarray, valid_count: int) -> float:
+    clipped = (mask & circle).astype(np.uint8)
+    if int(np.count_nonzero(clipped)) <= 0:
+        return 0.0
+    _count, _labels, stats, _centroids = cv2.connectedComponentsWithStats(clipped, connectivity=8)
+    if len(stats) <= 1:
+        return 0.0
+    largest = int(stats[1:, cv2.CC_STAT_AREA].max())
+    return float(largest) / float(max(1, valid_count))
 
 
 def classify_ratios(
     yellow_ratio: float,
     white_ratio: float,
     ball_ratio: float,
+    yellow_component_ratio: float,
+    white_component_ratio: float,
     config: PingpongDetectorConfig,
 ) -> tuple[str, float]:
-    if ball_ratio < config.min_ball_ratio:
-        confidence = 0.65 + min(0.25, (config.min_ball_ratio - ball_ratio) / max(config.min_ball_ratio, 0.001) * 0.25)
+    yellow_candidate = (
+        yellow_ratio >= config.min_ball_ratio
+        and yellow_component_ratio >= config.min_yellow_component_ratio
+    )
+    white_candidate = (
+        white_ratio >= config.min_white_ratio
+        and white_component_ratio >= config.min_white_component_ratio
+    )
+    if not yellow_candidate and not white_candidate:
+        best_ratio = max(yellow_ratio, white_ratio)
+        required = config.min_ball_ratio if yellow_ratio >= white_ratio else config.min_white_ratio
+        confidence = 0.65 + min(0.25, (required - best_ratio) / max(required, 0.001) * 0.25)
         return CLASS_EMPTY, confidence
 
-    if yellow_ratio >= white_ratio + config.min_color_margin:
+    if yellow_candidate and yellow_ratio >= white_ratio + config.min_color_margin:
         color_strength = min(1.0, yellow_ratio / max(config.min_ball_ratio, 0.001))
         margin = min(1.0, (yellow_ratio - white_ratio) / max(config.min_color_margin * 4.0, 0.001))
         return CLASS_YELLOW, 0.55 + 0.25 * color_strength + 0.15 * margin
 
-    if white_ratio >= yellow_ratio + config.min_color_margin:
-        color_strength = min(1.0, white_ratio / max(config.min_ball_ratio, 0.001))
+    if white_candidate and white_ratio >= yellow_ratio + config.min_color_margin:
+        color_strength = min(1.0, white_ratio / max(config.min_white_ratio, 0.001))
         margin = min(1.0, (white_ratio - yellow_ratio) / max(config.min_color_margin * 4.0, 0.001))
         return CLASS_WHITE, 0.55 + 0.25 * color_strength + 0.15 * margin
 
-    if yellow_ratio >= white_ratio:
+    if yellow_candidate and yellow_ratio >= white_ratio:
         return CLASS_YELLOW, 0.50 + min(0.20, ball_ratio)
-    return CLASS_WHITE, 0.50 + min(0.20, ball_ratio)
+    if white_candidate:
+        return CLASS_WHITE, 0.50 + min(0.20, ball_ratio)
+    return CLASS_EMPTY, 0.60
 
 
 def draw_pingpong_cells(
