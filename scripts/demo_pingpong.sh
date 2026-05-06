@@ -17,8 +17,9 @@ usage() {
   PINGPONG_DEMO_CONFIG=/path/to/pingpong_demo.env
   CAMERA_PROFILE=auto|usb0|usb1|topic
   IMAGE_TOPIC=/your/image/topic
-  F407_HOST=127.0.0.1
+  F407_HOST=192.168.1.50
   F407_PORT=9000
+  CHECK_F407=1
   DEMO_DRY_RUN=1
 
 首次配置:
@@ -37,25 +38,22 @@ print_quick_commands() {
 2. 只检查配置，不启动:
    DEMO_DRY_RUN=1 scripts/demo_pingpong.sh
 
-3. 查看 USB 相机:
+3. 查看相机设备:
    ls /dev/video*
    v4l2-ctl --list-devices
 
-4. 查看 ROS2 图像和矩阵 topic:
+4. 查看运行中的 ROS2 输出:
    source /opt/ros/humble/setup.sh
    source $WORKSPACE_DIR/install/setup.sh
    ros2 topic list
    ros2 topic hz /image_raw
    ros2 topic echo /sorting/tray_matrix
 
-5. 本机模拟 F407 接收:
-   nc -l $F407_PORT
-
-6. 真实 F407/W5500 地址配置:
+5. 修改真实 F407/W5500 地址:
    nano config/pingpong_demo.env
    # 修改 F407_HOST 和 F407_PORT
 
-7. 当前将使用:
+6. 当前将连接:
    F407_HOST=$F407_HOST
    F407_PORT=$F407_PORT
 ==================================
@@ -94,13 +92,18 @@ CAMERA_PROFILE="${CAMERA_PROFILE:-auto}"
 IMAGE_TOPIC="${IMAGE_TOPIC:-}"
 ACTIVE_TRAY_ID="${ACTIVE_TRAY_ID:-1}"
 PROCESS_EVERY_N_FRAMES="${PROCESS_EVERY_N_FRAMES:-3}"
-F407_HOST="${F407_HOST:-127.0.0.1}"
+F407_HOST="${F407_HOST:-}"
 F407_PORT="${F407_PORT:-9000}"
+CHECK_F407="${CHECK_F407:-1}"
 
 [[ -f "$ROS_SETUP" ]] || die "找不到 ROS2 环境: $ROS_SETUP"
 [[ -d "$WORKSPACE_DIR" ]] || die "找不到 ROS2 工作区: $WORKSPACE_DIR"
 [[ -f "$WORKSPACE_DIR/install/setup.sh" ]] || die "工作区还没有 build 或 install/setup.sh 不存在。请先执行: cd $WORKSPACE_DIR && colcon build"
 [[ -x "$REPO_DIR/scripts/run_pingpong_demo.sh" ]] || die "启动脚本不可执行: $REPO_DIR/scripts/run_pingpong_demo.sh"
+if [[ "$CHECK_F407" == "1" ]]; then
+  [[ -n "$F407_HOST" ]] || die "未配置 F407_HOST。请先执行: cp config/pingpong_demo.env.example config/pingpong_demo.env，然后把 F407_HOST 改成真实 F407/W5500 IP。"
+  [[ "$F407_HOST" != "127.0.0.1" && "$F407_HOST" != "localhost" ]] || die "当前 F407_HOST=$F407_HOST，这是本机地址，不适合真实硬件测试。请在 config/pingpong_demo.env 中填写 F407/W5500 的真实 IP。"
+fi
 
 PROFILE_TO_RUN="$CAMERA_PROFILE"
 TOPIC_TO_RUN=""
@@ -149,6 +152,7 @@ fi
 info "  active_tray_id=$ACTIVE_TRAY_ID"
 info "  process_every_n_frames=$PROCESS_EVERY_N_FRAMES"
 info "  f407=$F407_HOST:$F407_PORT"
+info "  check_f407=$CHECK_F407"
 
 print_quick_commands
 
@@ -162,6 +166,14 @@ if [[ "${DEMO_DRY_RUN:-0}" == "1" ]]; then
     info "将执行: scripts/run_pingpong_demo.sh $PROFILE_TO_RUN"
   fi
   exit 0
+fi
+
+if [[ "$CHECK_F407" == "1" ]]; then
+  info "正在检查 F407/W5500 TCP 连接: $F407_HOST:$F407_PORT"
+  if ! timeout 2 bash -c "cat < /dev/null > /dev/tcp/$F407_HOST/$F407_PORT" 2>/dev/null; then
+    die "无法连接 F407/W5500: $F407_HOST:$F407_PORT。请检查 IP、端口、网线/网络、F407 程序是否已启动监听。"
+  fi
+  info "F407/W5500 TCP 连接检查通过。"
 fi
 
 if [[ "$PROFILE_TO_RUN" == "topic" ]]; then
