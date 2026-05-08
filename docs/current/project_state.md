@@ -49,19 +49,27 @@ sorting_vision
 - ROS 2 Humble 可用。
 - D435iF 可被系统识别。
 - RealSense ROS 2 driver 可发布 RGB、Depth、Aligned Depth、CameraInfo。
-- 640 x 480 x 15 模式稳定性优于 1280 x 720 x 30。
+- 鲁班猫上 D435IF 当前以 USB 2.1 连接，RealSense 日志提示性能受限。
+- 鲁班猫实测可启动 `Color 1280x720x15` + `Depth 848x480x10`。
+- `Depth 1280x720x15` 不受支持；`Depth 1280x720` 只支持 6 FPS。
+- `640 x 480 x 15` 模式稳定性优于高分辨率高帧率组合。
 - `camera_input_probe` 可看到 RGB/Depth 图像。
 - `camera_info_probe` 可读取相机内参。
 - `depth_point_probe` 可在指定像素读取深度并反算相机坐标。
 - `capture_rgbd_sample` 可采集 RGB-D 样本。
 
-推荐 RealSense 启动命令：
+当前鲁班猫推荐 RealSense 配置：
 
 ```bash
-ros2 launch realsense2_camera rs_launch.py \
-  rgb_camera.color_profile:=640x480x15 \
-  depth_module.depth_profile:=640x480x15 \
-  align_depth.enable:=true
+REALSENSE_COLOR_PROFILE=1280x720x15
+REALSENSE_DEPTH_PROFILE=848x480x10
+```
+
+备选稳定配置：
+
+```bash
+REALSENSE_COLOR_PROFILE=640x480x30
+REALSENSE_DEPTH_PROFILE=640x480x30
 ```
 
 ## 4. 样本和 Debug

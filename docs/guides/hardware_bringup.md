@@ -149,6 +149,62 @@ ros2 topic info /camera/depth/image_rect_raw
 | 相机固定方式稳定 | 待确认 |
 | 光照环境稳定 | 待确认 |
 
+## 7.1 鲁班猫 D435IF 实测支持 profile
+
+2026-05-08 在鲁班猫上执行 `rs-enumerate-devices`，设备信息：
+
+```text
+Name: Intel RealSense D435IF
+Serial Number: 336222076472
+Firmware Version: 5.15.0.2
+Recommended Firmware Version: 5.17.0.10
+USB Type Descriptor: 2.1
+Product Line: D400
+```
+
+注意：当前连接显示为 USB 2.1，RealSense 日志会提示性能受限。高分辨率高帧率组合可能无法稳定启用。
+
+Depth 支持：
+
+| 分辨率 | FPS |
+| --- | --- |
+| `1280x720` | `6` |
+| `848x480` | `10/8/6` |
+| `640x480` | `30/15/6` |
+| `640x360` | `30` |
+| `480x270` | `60/30/15/6` |
+| `256x144` | `90` |
+
+Color 支持：
+
+| 分辨率 | FPS |
+| --- | --- |
+| `1920x1080` | `8` |
+| `1280x720` | `15/10/6` |
+| `640x480` | `30/15/6` |
+| `424x240` | `60/30/15/6` |
+
+当前推荐测试配置：
+
+```bash
+REALSENSE_COLOR_PROFILE=1280x720x15
+REALSENSE_DEPTH_PROFILE=848x480x10
+```
+
+备选稳定配置：
+
+```bash
+REALSENSE_COLOR_PROFILE=640x480x30
+REALSENSE_DEPTH_PROFILE=640x480x30
+```
+
+如果需要 RGB 清晰度优先但保持 15 FPS：
+
+```bash
+REALSENSE_COLOR_PROFILE=1280x720x15
+REALSENSE_DEPTH_PROFILE=640x480x15
+```
+
 ## 8. 真机接入时不要写死的内容
 
 以下内容必须通过配置文件或 ROS 参数管理，不应散落写死在代码中：
