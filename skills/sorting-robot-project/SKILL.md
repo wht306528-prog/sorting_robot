@@ -36,6 +36,17 @@ description: Use this skill whenever working in /home/wht/sorting_robot or discu
 
 ## Current Vision Architecture
 
+## Project Stage Boundary
+
+The project has two distinct target stages. Do not merge them casually:
+
+- Current near-term demo stage: identify and suction ping-pong balls. The target objects are white/yellow ping-pong balls in tray holes, and the immediate downstream need is a reliable matrix/TCP interface for F407-driven suction testing.
+- Final project stage: identify and grip seedling-tray crops. The target objects are crops/seedlings, and the downstream action is mechanical gripping or crop handling.
+
+When discussing algorithms, coordinates, end effectors, or readiness, state which stage is being addressed. Do not imply ping-pong suction completion equals final crop gripping completion.
+
+## Current Vision Architecture
+
 Current offline/realtime vision pipeline:
 
 ```text
