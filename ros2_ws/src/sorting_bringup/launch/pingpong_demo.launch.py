@@ -15,6 +15,8 @@ def generate_launch_description() -> LaunchDescription:
     # 启动参数这里只保存引用，真正的值由命令行或脚本传入。
     start_camera = LaunchConfiguration('start_camera')
     start_realsense = LaunchConfiguration('start_realsense')
+    realsense_color_profile = LaunchConfiguration('realsense_color_profile')
+    realsense_depth_profile = LaunchConfiguration('realsense_depth_profile')
     video_device = LaunchConfiguration('video_device')
     image_topic = LaunchConfiguration('image_topic')
     color_camera_info_topic = LaunchConfiguration('color_camera_info_topic')
@@ -33,6 +35,8 @@ def generate_launch_description() -> LaunchDescription:
             # 这些参数由 scripts/demo_pingpong.sh 和 scripts/run_pingpong_demo.sh 统一注入。
             DeclareLaunchArgument('start_camera', default_value='true'),
             DeclareLaunchArgument('start_realsense', default_value='false'),
+            DeclareLaunchArgument('realsense_color_profile', default_value='640x480x15'),
+            DeclareLaunchArgument('realsense_depth_profile', default_value='640x480x15'),
             DeclareLaunchArgument('video_device', default_value='/dev/video0'),
             DeclareLaunchArgument('image_topic', default_value='/image_raw'),
             DeclareLaunchArgument('color_camera_info_topic', default_value='/camera/camera/color/camera_info'),
@@ -68,6 +72,8 @@ def generate_launch_description() -> LaunchDescription:
                 condition=IfCondition(start_realsense),
                 launch_arguments={
                     'align_depth.enable': 'true',
+                    'rgb_camera.color_profile': realsense_color_profile,
+                    'depth_module.depth_profile': realsense_depth_profile,
                 }.items(),
             ),
             Node(

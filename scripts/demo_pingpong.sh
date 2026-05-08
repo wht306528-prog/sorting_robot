@@ -18,6 +18,8 @@ usage() {
   CAMERA_PROFILE=auto|usb0|usb1|realsense|topic
   IMAGE_TOPIC=/your/image/topic
   COLOR_CAMERA_INFO_TOPIC=/your/color/camera_info
+  REALSENSE_COLOR_PROFILE=1280x720x30
+  REALSENSE_DEPTH_PROFILE=848x480x30
   USE_DEPTH=auto|true|false
   USE_UNDISTORT=true|false
   DEPTH_IMAGE_TOPIC=/your/aligned_depth/topic
@@ -110,6 +112,8 @@ USE_DEPTH="${USE_DEPTH:-auto}"
 DEPTH_IMAGE_TOPIC="${DEPTH_IMAGE_TOPIC:-/camera/camera/aligned_depth_to_color/image_raw}"
 COLOR_CAMERA_INFO_TOPIC="${COLOR_CAMERA_INFO_TOPIC:-/camera/camera/color/camera_info}"
 USE_UNDISTORT="${USE_UNDISTORT:-true}"
+REALSENSE_COLOR_PROFILE="${REALSENSE_COLOR_PROFILE:-640x480x15}"
+REALSENSE_DEPTH_PROFILE="${REALSENSE_DEPTH_PROFILE:-640x480x15}"
 DEPTH_WINDOW_PX="${DEPTH_WINDOW_PX:-5}"
 EXPECTED_TRAY_COUNT="${EXPECTED_TRAY_COUNT:-3}"
 PROCESS_EVERY_N_FRAMES="${PROCESS_EVERY_N_FRAMES:-3}"
@@ -242,6 +246,10 @@ info "  use_undistort=$USE_UNDISTORT"
 if [[ "$USE_UNDISTORT" == "true" ]]; then
   info "  color_camera_info_topic=$COLOR_CAMERA_INFO_TOPIC"
 fi
+if [[ "$PROFILE_TO_RUN" == "realsense" ]]; then
+  info "  realsense_color_profile=$REALSENSE_COLOR_PROFILE"
+  info "  realsense_depth_profile=$REALSENSE_DEPTH_PROFILE"
+fi
 info "  f407=$F407_HOST:$F407_PORT"
 info "  check_f407=$CHECK_F407"
 
@@ -250,6 +258,7 @@ print_quick_commands
 export WORKSPACE_DIR ROS_SETUP EXPECTED_TRAY_COUNT PROCESS_EVERY_N_FRAMES F407_HOST F407_PORT
 export USE_DEPTH="$USE_DEPTH_TO_RUN" DEPTH_IMAGE_TOPIC DEPTH_WINDOW_PX
 export USE_UNDISTORT COLOR_CAMERA_INFO_TOPIC
+export REALSENSE_COLOR_PROFILE REALSENSE_DEPTH_PROFILE
 if [[ "$CHECK_F407" == "1" ]]; then
   export START_TCP_SENDER="true"
 else

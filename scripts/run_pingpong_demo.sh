@@ -7,6 +7,8 @@ PROFILE="${1:-${PINGPONG_CAMERA_PROFILE:-usb0}}"
 TOPIC_ARG="${2:-}"
 START_CAMERA="${START_CAMERA:-}"
 START_REALSENSE="${START_REALSENSE:-false}"
+REALSENSE_COLOR_PROFILE="${REALSENSE_COLOR_PROFILE:-640x480x15}"
+REALSENSE_DEPTH_PROFILE="${REALSENSE_DEPTH_PROFILE:-640x480x15}"
 VIDEO_DEVICE="${VIDEO_DEVICE:-}"
 IMAGE_TOPIC="${IMAGE_TOPIC:-}"
 COLOR_CAMERA_INFO_TOPIC="${COLOR_CAMERA_INFO_TOPIC:-/camera/camera/color/camera_info}"
@@ -41,6 +43,8 @@ usage() {
   F407_PORT=9000
   USE_DEPTH=false|true
   USE_UNDISTORT=false|true
+  REALSENSE_COLOR_PROFILE=1280x720x30
+  REALSENSE_DEPTH_PROFILE=848x480x30
   COLOR_CAMERA_INFO_TOPIC=/camera/camera/color/camera_info
   DEPTH_IMAGE_TOPIC=/camera/camera/aligned_depth_to_color/image_raw
 EOF
@@ -108,6 +112,7 @@ set -u
 # 打印最终启动参数，方便无显示器现场通过终端确认相机、深度和 F407 地址。
 echo "pingpong demo profile: $PROFILE"
 echo "start_camera=$START_CAMERA start_realsense=$START_REALSENSE video_device=$VIDEO_DEVICE image_topic=$IMAGE_TOPIC"
+echo "realsense_color_profile=$REALSENSE_COLOR_PROFILE realsense_depth_profile=$REALSENSE_DEPTH_PROFILE"
 echo "use_depth=$USE_DEPTH depth_image_topic=$DEPTH_IMAGE_TOPIC"
 echo "use_undistort=$USE_UNDISTORT color_camera_info_topic=$COLOR_CAMERA_INFO_TOPIC"
 echo "expected_tray_count=$EXPECTED_TRAY_COUNT start_tcp_sender=$START_TCP_SENDER tcp=$F407_HOST:$F407_PORT"
@@ -116,6 +121,8 @@ echo "expected_tray_count=$EXPECTED_TRAY_COUNT start_tcp_sender=$START_TCP_SENDE
 exec ros2 launch sorting_bringup pingpong_demo.launch.py \
   start_camera:="$START_CAMERA" \
   start_realsense:="$START_REALSENSE" \
+  realsense_color_profile:="$REALSENSE_COLOR_PROFILE" \
+  realsense_depth_profile:="$REALSENSE_DEPTH_PROFILE" \
   video_device:="$VIDEO_DEVICE" \
   image_topic:="$IMAGE_TOPIC" \
   color_camera_info_topic:="$COLOR_CAMERA_INFO_TOPIC" \
