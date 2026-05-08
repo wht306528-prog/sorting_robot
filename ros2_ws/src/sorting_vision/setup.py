@@ -34,6 +34,7 @@ setup(
             'grid_debug_publisher = sorting_vision.nodes.grid_debug_publisher:main',
             'mock_matrix_publisher = sorting_vision.nodes.mock_matrix_publisher:main',
             'offline_tray_debug = sorting_vision.debug_tools.legacy.offline_tray_debug:main',
+            'opencv_image_viewer = sorting_vision.debug_tools.opencv_image_viewer:main',
             'pingpong_realtime_node = sorting_vision.nodes.pingpong_realtime_node:main',
             'real_matrix_publisher = sorting_vision.nodes.real_matrix_publisher:main',
             'tray_rectify_debug = sorting_vision.debug_tools.tray_rectify_debug:main',
