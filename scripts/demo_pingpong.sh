@@ -15,7 +15,7 @@ usage() {
 
 可选环境变量:
   PINGPONG_DEMO_CONFIG=/path/to/pingpong_demo.env
-  CAMERA_PROFILE=auto|usb0|usb1|topic
+  CAMERA_PROFILE=auto|usb0|usb1|realsense|topic
   IMAGE_TOPIC=/your/image/topic
   USE_DEPTH=auto|true|false
   DEPTH_IMAGE_TOPIC=/your/aligned_depth/topic
@@ -43,6 +43,7 @@ print_quick_commands() {
 3. 查看相机设备:
    ls /dev/video*
    v4l2-ctl --list-devices
+   rs-enumerate-devices
 
 4. 查看运行中的 ROS2 输出:
    source /opt/ros/humble/setup.sh
@@ -136,10 +137,14 @@ PROFILE_TO_RUN="$CAMERA_PROFILE"
 TOPIC_TO_RUN=""
 USE_DEPTH_TO_RUN="$USE_DEPTH"
 
-# 相机 profile 负责决定是否启动本机 USB 相机，还是订阅外部已有图像 topic。
+# 相机 profile 负责决定启动普通 USB、D435iF/RealSense，还是订阅外部已有图像 topic。
 case "$CAMERA_PROFILE" in
   auto)
-    if [[ -e /dev/video0 ]]; then
+    if command -v rs-enumerate-devices >/dev/null 2>&1 && timeout 3 rs-enumerate-devices 2>/dev/null | grep -Eq 'D4|RealSense|Intel'; then
+      PROFILE_TO_RUN="realsense"
+      IMAGE_TOPIC="/camera/camera/color/image_raw"
+      USE_DEPTH_TO_RUN="true"
+    elif [[ -e /dev/video0 ]]; then
       PROFILE_TO_RUN="usb0"
     elif [[ -e /dev/video1 ]]; then
       PROFILE_TO_RUN="usb1"
@@ -157,20 +162,29 @@ case "$CAMERA_PROFILE" in
   usb1)
     [[ -e /dev/video1 ]] || die "CAMERA_PROFILE=usb1，但 /dev/video1 不存在。可先执行: ls /dev/video*"
     ;;
+  realsense)
+    command -v ros2 >/dev/null 2>&1 || die "找不到 ros2 命令，请检查 ROS2 环境。"
+    ros2 pkg prefix realsense2_camera >/dev/null 2>&1 || die "CAMERA_PROFILE=realsense 需要安装 realsense2_camera，例如 ros-humble-realsense2-camera。"
+    IMAGE_TOPIC="${IMAGE_TOPIC:-/camera/camera/color/image_raw}"
+    DEPTH_IMAGE_TOPIC="${DEPTH_IMAGE_TOPIC:-/camera/camera/aligned_depth_to_color/image_raw}"
+    PROFILE_TO_RUN="realsense"
+    ;;
   topic)
     [[ -n "$IMAGE_TOPIC" ]] || die "CAMERA_PROFILE=topic 需要设置 IMAGE_TOPIC，例如 /camera/camera/color/image_raw"
     PROFILE_TO_RUN="topic"
     TOPIC_TO_RUN="$IMAGE_TOPIC"
     ;;
   *)
-    die "未知 CAMERA_PROFILE=$CAMERA_PROFILE，只支持 auto|usb0|usb1|topic"
+    die "未知 CAMERA_PROFILE=$CAMERA_PROFILE，只支持 auto|usb0|usb1|realsense|topic"
     ;;
 esac
 
-# 深度输入自适应：USB 普通相机默认 z=0；topic/RGBD 模式才尝试使用深度。
+# 深度输入自适应：USB 普通相机默认 z=0；D435iF/RealSense 默认启用对齐深度。
 case "$USE_DEPTH_TO_RUN" in
   auto)
-    if [[ "$PROFILE_TO_RUN" == "topic" && -n "$DEPTH_IMAGE_TOPIC" ]]; then
+    if [[ "$PROFILE_TO_RUN" == "realsense" ]]; then
+      USE_DEPTH_TO_RUN="true"
+    elif [[ "$PROFILE_TO_RUN" == "topic" && -n "$DEPTH_IMAGE_TOPIC" ]]; then
       USE_DEPTH_TO_RUN="true"
     else
       USE_DEPTH_TO_RUN="false"
@@ -191,7 +205,8 @@ if [[ "$PROFILE_TO_RUN" == "topic" ]]; then
 fi
 
 # 启用深度时，必须使用已经对齐到 RGB 的深度图，否则像素坐标和 z 对不上。
-if [[ "$USE_DEPTH_TO_RUN" == "true" ]]; then
+# realsense 模式的 topic 会由本脚本启动的驱动发布，所以启动前不检查 topic 是否已存在。
+if [[ "$USE_DEPTH_TO_RUN" == "true" && "$PROFILE_TO_RUN" != "realsense" ]]; then
   if ! topic_exists "$DEPTH_IMAGE_TOPIC"; then
     die "USE_DEPTH=true，但未发现深度 topic: $DEPTH_IMAGE_TOPIC。请使用对齐到 RGB 的深度 topic，或设置 USE_DEPTH=false。"
   fi
@@ -201,6 +216,9 @@ info "启动配置:"
 info "  profile=$PROFILE_TO_RUN"
 if [[ "$PROFILE_TO_RUN" == "topic" ]]; then
   info "  image_topic=$TOPIC_TO_RUN"
+elif [[ "$PROFILE_TO_RUN" == "realsense" ]]; then
+  info "  camera=realsense/D435iF"
+  info "  image_topic=$IMAGE_TOPIC"
 elif [[ "$PROFILE_TO_RUN" == "usb0" ]]; then
   info "  usb_device=/dev/video0"
 elif [[ "$PROFILE_TO_RUN" == "usb1" ]]; then

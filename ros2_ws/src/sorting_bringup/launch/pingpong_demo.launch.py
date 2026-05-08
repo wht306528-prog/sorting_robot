@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description() -> LaunchDescription:
     # 启动参数这里只保存引用，真正的值由命令行或脚本传入。
     start_camera = LaunchConfiguration('start_camera')
+    start_realsense = LaunchConfiguration('start_realsense')
     video_device = LaunchConfiguration('video_device')
     image_topic = LaunchConfiguration('image_topic')
     depth_image_topic = LaunchConfiguration('depth_image_topic')
@@ -26,6 +29,7 @@ def generate_launch_description() -> LaunchDescription:
         [
             # 这些参数由 scripts/demo_pingpong.sh 和 scripts/run_pingpong_demo.sh 统一注入。
             DeclareLaunchArgument('start_camera', default_value='true'),
+            DeclareLaunchArgument('start_realsense', default_value='false'),
             DeclareLaunchArgument('video_device', default_value='/dev/video0'),
             DeclareLaunchArgument('image_topic', default_value='/image_raw'),
             DeclareLaunchArgument('depth_image_topic', default_value='/camera/camera/aligned_depth_to_color/image_raw'),
@@ -47,6 +51,18 @@ def generate_launch_description() -> LaunchDescription:
                         'video_device': video_device,
                     }
                 ],
+            ),
+            IncludeLaunchDescription(
+                # D435iF/RealSense 入口；启用后由 RealSense 驱动发布 RGB 和对齐深度 topic。
+                PythonLaunchDescriptionSource(
+                    PathJoinSubstitution(
+                        [FindPackageShare('realsense2_camera'), 'launch', 'rs_launch.py']
+                    )
+                ),
+                condition=IfCondition(start_realsense),
+                launch_arguments={
+                    'align_depth.enable': 'true',
+                }.items(),
             ),
             Node(
                 # 视觉节点：订阅 RGB/可选深度，发布 debug 图、JSON 和标准 TrayMatrix。
