@@ -13,7 +13,10 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import String
 
 from sorting_interfaces.msg import TrayCell, TrayMatrix
+from sorting_vision.algorithms.detector import ImageView as DetectorImageView
+from sorting_vision.algorithms.detector import sample_depth_mm
 from sorting_vision.algorithms.pingpong_detector import (
+    PingpongCell,
     PingpongDetectorConfig,
     detect_pingpong_cells,
     draw_pingpong_cells,
@@ -37,9 +40,15 @@ class PingpongRealtimeNode(Node):
 
         self._declare_parameters()
         self._color_topic = self._string_parameter('color_image_topic', '/camera/camera/color/image_raw')
+        self._depth_topic = self._string_parameter(
+            'depth_image_topic',
+            '/camera/camera/aligned_depth_to_color/image_raw',
+        )
         self._debug_topic = self._string_parameter('debug_image_topic', '/sorting/pingpong/debug_image')
         self._cells_topic = self._string_parameter('cells_json_topic', '/sorting/pingpong/cells_json')
         self._tray_matrix_topic = self._string_parameter('tray_matrix_topic', '/sorting/tray_matrix')
+        self._use_depth = self._bool_parameter('use_depth', True)
+        self._depth_window_px = max(1, self._int_parameter('depth_window_px', 5))
         self._active_tray_id = max(1, min(3, self._int_parameter('active_tray_id', 1)))
         self._process_every_n = max(1, self._int_parameter('process_every_n_frames', 3))
         self._log_every_sec = max(0.5, self._float_parameter('log_every_sec', 2.0))
@@ -47,7 +56,10 @@ class PingpongRealtimeNode(Node):
         self._last_log_time = 0.0
         self._edge_config = self._edge_config_from_parameters()
         self._pingpong_config = self._pingpong_config_from_parameters()
+        self._latest_depth: Image | None = None
         self._warned_encoding = False
+        self._warned_depth_waiting = False
+        self._warned_depth_size = False
 
         self._debug_publisher = self.create_publisher(Image, self._debug_topic, 10)
         self._cells_publisher = self.create_publisher(String, self._cells_topic, 10)
@@ -58,8 +70,20 @@ class PingpongRealtimeNode(Node):
             self._handle_image,
             qos_profile_sensor_data,
         )
+        self._depth_subscription = None
+        if self._use_depth:
+            self._depth_subscription = self.create_subscription(
+                Image,
+                self._depth_topic,
+                self._handle_depth,
+                qos_profile_sensor_data,
+            )
 
         self.get_logger().info(f'正在订阅 RGB 图像：{self._color_topic}')
+        if self._use_depth:
+            self.get_logger().info(f'正在订阅对齐深度图像：{self._depth_topic}')
+        else:
+            self.get_logger().info('已关闭深度输入：TrayCell.z 将保持 0')
         self.get_logger().info(f'正在发布乒乓球标注图：{self._debug_topic}')
         self.get_logger().info(f'正在发布乒乓球 JSON：{self._cells_topic}')
         self.get_logger().info(f'正在发布标准 TrayMatrix：{self._tray_matrix_topic}')
@@ -68,6 +92,9 @@ class PingpongRealtimeNode(Node):
 
     def _declare_parameters(self) -> None:
         self.declare_parameter('color_image_topic', '/camera/camera/color/image_raw')
+        self.declare_parameter('depth_image_topic', '/camera/camera/aligned_depth_to_color/image_raw')
+        self.declare_parameter('use_depth', True)
+        self.declare_parameter('depth_window_px', 5)
         self.declare_parameter('debug_image_topic', '/sorting/pingpong/debug_image')
         self.declare_parameter('cells_json_topic', '/sorting/pingpong/cells_json')
         self.declare_parameter('tray_matrix_topic', '/sorting/tray_matrix')
@@ -84,6 +111,9 @@ class PingpongRealtimeNode(Node):
         self.declare_parameter('min_ball_ratio', 0.16)
         self.declare_parameter('min_white_ratio', 0.30)
         self.declare_parameter('min_color_margin', 0.035)
+
+    def _handle_depth(self, message: Image) -> None:
+        self._latest_depth = message
 
     def _edge_config_from_parameters(self) -> TrayEdgeFitConfig:
         return TrayEdgeFitConfig(
@@ -121,7 +151,19 @@ class PingpongRealtimeNode(Node):
         if edge_result.status == 'ok' and edge_result.rectified is not None:
             detection_result = detect_pingpong_cells(edge_result.rectified, self._pingpong_config)
             debug_image = draw_pingpong_cells(edge_result.rectified, detection_result)
-            payload = self._payload(message, edge_result.status, edge_result.message, detection_result.cells)
+            depth_by_position, source_by_position = self._sample_cell_depths(
+                source_message=message,
+                cells=detection_result.cells,
+                corners=edge_result.corners,
+            )
+            payload = self._payload(
+                message,
+                edge_result.status,
+                edge_result.message,
+                detection_result.cells,
+                depth_by_position,
+                source_by_position,
+            )
         else:
             debug_image = image.copy()
             self._draw_failure(debug_image, edge_result.message)
@@ -152,7 +194,17 @@ class PingpongRealtimeNode(Node):
         )
         self._matrix_publisher.publish(matrix)
 
-    def _payload(self, message: Image, status: str, status_message: str, cells) -> dict[str, object]:
+    def _payload(
+        self,
+        message: Image,
+        status: str,
+        status_message: str,
+        cells,
+        depth_by_position: dict[tuple[int, int], float] | None = None,
+        source_by_position: dict[tuple[int, int], tuple[float, float]] | None = None,
+    ) -> dict[str, object]:
+        depth_by_position = depth_by_position or {}
+        source_by_position = source_by_position or {}
         counts = {
             'yellow_ball': sum(1 for cell in cells if cell.class_name == 'yellow_ball'),
             'white_ball': sum(1 for cell in cells if cell.class_name == 'white_ball'),
@@ -181,10 +233,48 @@ class PingpongRealtimeNode(Node):
                     'confidence': round(cell.confidence, 3),
                     'u_rect': round(cell.u, 3),
                     'v_rect': round(cell.v, 3),
+                    'u_source': round(source_by_position.get((cell.row, cell.col), (0.0, 0.0))[0], 3),
+                    'v_source': round(source_by_position.get((cell.row, cell.col), (0.0, 0.0))[1], 3),
+                    'z_mm': round(depth_by_position.get((cell.row, cell.col), 0.0), 3),
                 }
                 for cell in cells
             ],
         }
+
+    def _sample_cell_depths(
+        self,
+        source_message: Image,
+        cells: list[PingpongCell],
+        corners,
+    ) -> tuple[dict[tuple[int, int], float], dict[tuple[int, int], tuple[float, float]]]:
+        if not self._use_depth:
+            return {}, {}
+        if self._latest_depth is None:
+            if not self._warned_depth_waiting:
+                self.get_logger().warning('尚未收到深度图像，本帧 TrayCell.z=0')
+                self._warned_depth_waiting = True
+            return {}, {}
+        if corners is None:
+            return {}, {}
+        if (
+            self._latest_depth.width != source_message.width
+            or self._latest_depth.height != source_message.height
+        ):
+            if not self._warned_depth_size:
+                self.get_logger().warning(
+                    '深度图尺寸与 RGB 图不一致，本帧不采样 z。'
+                    '请使用对齐到 RGB 的深度图 topic。'
+                )
+                self._warned_depth_size = True
+            return {}, {}
+
+        source_points = rectified_cells_to_source_points(cells, corners, self._edge_config)
+        depth_view = ros_depth_to_image_view(self._latest_depth)
+        depth_by_position = {
+            position: sample_depth_mm(depth_view, point[0], point[1], self._depth_window_px)
+            for position, point in source_points.items()
+        }
+        return depth_by_position, source_points
 
     def _log_summary(self, payload: dict[str, object]) -> None:
         now = time.monotonic()
@@ -229,6 +319,20 @@ class PingpongRealtimeNode(Node):
         value = self.get_parameter(name).value
         return int(value) if value is not None else default
 
+    def _bool_parameter(self, name: str, default: bool) -> bool:
+        value = self.get_parameter(name).value
+        if value is None:
+            return default
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in ('1', 'true', 'yes', 'on'):
+                return True
+            if normalized in ('0', 'false', 'no', 'off'):
+                return False
+        return bool(value)
+
 
 def ros_image_to_bgr(message: Image) -> np.ndarray | None:
     if message.encoding not in ('bgr8', 'rgb8'):
@@ -255,6 +359,44 @@ def bgr_to_ros_image(image: np.ndarray, source_message: Image) -> Image:
     output.step = int(image.shape[1] * 3)
     output.data = image.astype(np.uint8).tobytes()
     return output
+
+
+def ros_depth_to_image_view(message: Image) -> DetectorImageView:
+    return DetectorImageView(
+        width=message.width,
+        height=message.height,
+        encoding=message.encoding,
+        step=message.step,
+        data=bytes(message.data),
+    )
+
+
+def rectified_cells_to_source_points(
+    cells: list[PingpongCell],
+    corners: np.ndarray,
+    config: TrayEdgeFitConfig,
+) -> dict[tuple[int, int], tuple[float, float]]:
+    import cv2
+
+    padding = config.rectified_padding
+    target = np.asarray(
+        [
+            [float(padding), float(padding)],
+            [float(padding + config.rectified_width - 1), float(padding)],
+            [float(padding + config.rectified_width - 1), float(padding + config.rectified_height - 1)],
+            [float(padding), float(padding + config.rectified_height - 1)],
+        ],
+        dtype=np.float32,
+    )
+    matrix = cv2.getPerspectiveTransform(target, corners.astype(np.float32))
+    rectified_points = np.asarray([[[float(cell.u), float(cell.v)]] for cell in cells], dtype=np.float32)
+    if len(rectified_points) == 0:
+        return {}
+    source_points = cv2.perspectiveTransform(rectified_points, matrix).reshape(-1, 2)
+    return {
+        (cell.row, cell.col): (float(point[0]), float(point[1]))
+        for cell, point in zip(cells, source_points)
+    }
 
 
 def class_matrix(cells, rows: int, cols: int) -> list[list[str]]:
@@ -298,7 +440,7 @@ def tray_matrix_cells(payload_cells: list[dict[str, object]], active_tray_id: in
                     cell.confidence = float(source['confidence'])
                     cell.u = float(source['u_rect'])
                     cell.v = float(source['v_rect'])
-                    cell.z = 0.0
+                    cell.z = float(source.get('z_mm', 0.0))
                 cells.append(cell)
     return cells
 

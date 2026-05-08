@@ -8,6 +8,9 @@ TOPIC_ARG="${2:-}"
 START_CAMERA="${START_CAMERA:-}"
 VIDEO_DEVICE="${VIDEO_DEVICE:-}"
 IMAGE_TOPIC="${IMAGE_TOPIC:-}"
+DEPTH_IMAGE_TOPIC="${DEPTH_IMAGE_TOPIC:-/camera/camera/aligned_depth_to_color/image_raw}"
+USE_DEPTH="${USE_DEPTH:-false}"
+DEPTH_WINDOW_PX="${DEPTH_WINDOW_PX:-5}"
 ACTIVE_TRAY_ID="${ACTIVE_TRAY_ID:-1}"
 PROCESS_EVERY_N_FRAMES="${PROCESS_EVERY_N_FRAMES:-3}"
 F407_HOST="${F407_HOST:-127.0.0.1}"
@@ -30,6 +33,8 @@ usage() {
   PROCESS_EVERY_N_FRAMES=3
   F407_HOST=127.0.0.1
   F407_PORT=9000
+  USE_DEPTH=false|true
+  DEPTH_IMAGE_TOPIC=/camera/camera/aligned_depth_to_color/image_raw
 EOF
 }
 
@@ -72,12 +77,16 @@ source install/setup.sh
 
 echo "pingpong demo profile: $PROFILE"
 echo "start_camera=$START_CAMERA video_device=$VIDEO_DEVICE image_topic=$IMAGE_TOPIC"
+echo "use_depth=$USE_DEPTH depth_image_topic=$DEPTH_IMAGE_TOPIC"
 echo "tray=$ACTIVE_TRAY_ID tcp=$F407_HOST:$F407_PORT"
 
 exec ros2 launch sorting_bringup pingpong_demo.launch.py \
   start_camera:="$START_CAMERA" \
   video_device:="$VIDEO_DEVICE" \
   image_topic:="$IMAGE_TOPIC" \
+  depth_image_topic:="$DEPTH_IMAGE_TOPIC" \
+  use_depth:="$USE_DEPTH" \
+  depth_window_px:="$DEPTH_WINDOW_PX" \
   active_tray_id:="$ACTIVE_TRAY_ID" \
   process_every_n_frames:="$PROCESS_EVERY_N_FRAMES" \
   f407_host:="$F407_HOST" \

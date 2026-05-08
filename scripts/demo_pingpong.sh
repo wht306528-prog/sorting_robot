@@ -17,6 +17,8 @@ usage() {
   PINGPONG_DEMO_CONFIG=/path/to/pingpong_demo.env
   CAMERA_PROFILE=auto|usb0|usb1|topic
   IMAGE_TOPIC=/your/image/topic
+  USE_DEPTH=auto|true|false
+  DEPTH_IMAGE_TOPIC=/your/aligned_depth/topic
   F407_HOST=192.168.1.50
   F407_PORT=9000
   CHECK_F407=1
@@ -47,6 +49,7 @@ print_quick_commands() {
    source $WORKSPACE_DIR/install/setup.sh
    ros2 topic list
    ros2 topic hz /image_raw
+   ros2 topic hz $DEPTH_IMAGE_TOPIC
    ros2 topic echo /sorting/tray_matrix
 
 5. 修改真实 F407/W5500 地址:
@@ -74,6 +77,15 @@ die() {
   exit 1
 }
 
+topic_exists() {
+  local topic="$1"
+  local topics
+  if ! topics="$(timeout 4 ros2 topic list --no-daemon 2>/dev/null)"; then
+    die "无法读取 ROS2 topic 列表。请确认 ROS2 环境可用、相机驱动已启动，或稍后重试。"
+  fi
+  grep -Fxq "$topic" <<<"$topics"
+}
+
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" || "${1:-}" == "help" ]]; then
   usage
   exit 0
@@ -90,6 +102,9 @@ fi
 
 CAMERA_PROFILE="${CAMERA_PROFILE:-auto}"
 IMAGE_TOPIC="${IMAGE_TOPIC:-}"
+USE_DEPTH="${USE_DEPTH:-auto}"
+DEPTH_IMAGE_TOPIC="${DEPTH_IMAGE_TOPIC:-/camera/camera/aligned_depth_to_color/image_raw}"
+DEPTH_WINDOW_PX="${DEPTH_WINDOW_PX:-5}"
 ACTIVE_TRAY_ID="${ACTIVE_TRAY_ID:-1}"
 PROCESS_EVERY_N_FRAMES="${PROCESS_EVERY_N_FRAMES:-3}"
 F407_HOST="${F407_HOST:-}"
@@ -105,8 +120,18 @@ if [[ "$CHECK_F407" == "1" ]]; then
   [[ "$F407_HOST" != "127.0.0.1" && "$F407_HOST" != "localhost" ]] || die "当前 F407_HOST=$F407_HOST，这是本机地址，不适合真实硬件测试。请在 config/pingpong_demo.env 中填写 F407/W5500 的真实 IP。"
 fi
 
+# Load ROS here only for preflight topic checks. run_pingpong_demo.sh will
+# source the same files again before launching.
+set +u
+# shellcheck disable=SC1090
+source "$ROS_SETUP"
+# shellcheck disable=SC1090
+source "$WORKSPACE_DIR/install/setup.sh"
+set -u
+
 PROFILE_TO_RUN="$CAMERA_PROFILE"
 TOPIC_TO_RUN=""
+USE_DEPTH_TO_RUN="$USE_DEPTH"
 
 case "$CAMERA_PROFILE" in
   auto)
@@ -138,6 +163,33 @@ case "$CAMERA_PROFILE" in
     ;;
 esac
 
+case "$USE_DEPTH_TO_RUN" in
+  auto)
+    if [[ "$PROFILE_TO_RUN" == "topic" && -n "$DEPTH_IMAGE_TOPIC" ]]; then
+      USE_DEPTH_TO_RUN="true"
+    else
+      USE_DEPTH_TO_RUN="false"
+    fi
+    ;;
+  true|false)
+    ;;
+  *)
+    die "未知 USE_DEPTH=$USE_DEPTH，只支持 auto|true|false"
+    ;;
+esac
+
+if [[ "$PROFILE_TO_RUN" == "topic" ]]; then
+  if ! topic_exists "$TOPIC_TO_RUN"; then
+    die "未发现 RGB 图像 topic: $TOPIC_TO_RUN。请先启动相机驱动，或修改 IMAGE_TOPIC。"
+  fi
+fi
+
+if [[ "$USE_DEPTH_TO_RUN" == "true" ]]; then
+  if ! topic_exists "$DEPTH_IMAGE_TOPIC"; then
+    die "USE_DEPTH=true，但未发现深度 topic: $DEPTH_IMAGE_TOPIC。请使用对齐到 RGB 的深度 topic，或设置 USE_DEPTH=false。"
+  fi
+fi
+
 info "启动配置:"
 info "  profile=$PROFILE_TO_RUN"
 if [[ "$PROFILE_TO_RUN" == "topic" ]]; then
@@ -151,12 +203,17 @@ else
 fi
 info "  active_tray_id=$ACTIVE_TRAY_ID"
 info "  process_every_n_frames=$PROCESS_EVERY_N_FRAMES"
+info "  use_depth=$USE_DEPTH_TO_RUN"
+if [[ "$USE_DEPTH_TO_RUN" == "true" ]]; then
+  info "  depth_image_topic=$DEPTH_IMAGE_TOPIC"
+fi
 info "  f407=$F407_HOST:$F407_PORT"
 info "  check_f407=$CHECK_F407"
 
 print_quick_commands
 
 export WORKSPACE_DIR ROS_SETUP ACTIVE_TRAY_ID PROCESS_EVERY_N_FRAMES F407_HOST F407_PORT
+export USE_DEPTH="$USE_DEPTH_TO_RUN" DEPTH_IMAGE_TOPIC DEPTH_WINDOW_PX
 
 if [[ "${DEMO_DRY_RUN:-0}" == "1" ]]; then
   info "DEMO_DRY_RUN=1，只检查不启动。"
