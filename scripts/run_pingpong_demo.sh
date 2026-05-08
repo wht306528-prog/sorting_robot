@@ -16,6 +16,7 @@ USE_UNDISTORT="${USE_UNDISTORT:-true}"
 DEPTH_WINDOW_PX="${DEPTH_WINDOW_PX:-5}"
 EXPECTED_TRAY_COUNT="${EXPECTED_TRAY_COUNT:-3}"
 PROCESS_EVERY_N_FRAMES="${PROCESS_EVERY_N_FRAMES:-3}"
+START_TCP_SENDER="${START_TCP_SENDER:-true}"
 F407_HOST="${F407_HOST:-127.0.0.1}"
 F407_PORT="${F407_PORT:-9000}"
 
@@ -65,6 +66,7 @@ case "$PROFILE" in
     # realsense 模式由 launch 直接启动 D435iF 驱动，不需要另开终端。
     START_CAMERA="false"
     START_REALSENSE="true"
+    VIDEO_DEVICE="${VIDEO_DEVICE:-/dev/video0}"
     IMAGE_TOPIC="${IMAGE_TOPIC:-/camera/camera/color/image_raw}"
     COLOR_CAMERA_INFO_TOPIC="${COLOR_CAMERA_INFO_TOPIC:-/camera/camera/color/camera_info}"
     DEPTH_IMAGE_TOPIC="${DEPTH_IMAGE_TOPIC:-/camera/camera/aligned_depth_to_color/image_raw}"
@@ -96,16 +98,19 @@ case "$PROFILE" in
 esac
 
 # 这里使用 setup.sh，符合当前工作区实际安装结果；不要默认写 setup.bash。
+# ROS2 的 setup 脚本内部会引用未定义变量，source 时需要临时关闭 nounset。
+set +u
 source "$ROS_SETUP"
 cd "$WORKSPACE_DIR"
 source install/setup.sh
+set -u
 
 # 打印最终启动参数，方便无显示器现场通过终端确认相机、深度和 F407 地址。
 echo "pingpong demo profile: $PROFILE"
 echo "start_camera=$START_CAMERA start_realsense=$START_REALSENSE video_device=$VIDEO_DEVICE image_topic=$IMAGE_TOPIC"
 echo "use_depth=$USE_DEPTH depth_image_topic=$DEPTH_IMAGE_TOPIC"
 echo "use_undistort=$USE_UNDISTORT color_camera_info_topic=$COLOR_CAMERA_INFO_TOPIC"
-echo "expected_tray_count=$EXPECTED_TRAY_COUNT tcp=$F407_HOST:$F407_PORT"
+echo "expected_tray_count=$EXPECTED_TRAY_COUNT start_tcp_sender=$START_TCP_SENDER tcp=$F407_HOST:$F407_PORT"
 
 # launch 同时启动：可选 USB 相机节点、乒乓球实时识别节点、矩阵 TCP 发送节点。
 exec ros2 launch sorting_bringup pingpong_demo.launch.py \
@@ -120,5 +125,6 @@ exec ros2 launch sorting_bringup pingpong_demo.launch.py \
   depth_window_px:="$DEPTH_WINDOW_PX" \
   expected_tray_count:="$EXPECTED_TRAY_COUNT" \
   process_every_n_frames:="$PROCESS_EVERY_N_FRAMES" \
+  start_tcp_sender:="$START_TCP_SENDER" \
   f407_host:="$F407_HOST" \
   f407_port:="$F407_PORT"

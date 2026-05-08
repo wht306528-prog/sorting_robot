@@ -24,6 +24,7 @@ def generate_launch_description() -> LaunchDescription:
     depth_window_px = LaunchConfiguration('depth_window_px')
     expected_tray_count = LaunchConfiguration('expected_tray_count')
     process_every_n_frames = LaunchConfiguration('process_every_n_frames')
+    start_tcp_sender = LaunchConfiguration('start_tcp_sender')
     f407_host = LaunchConfiguration('f407_host')
     f407_port = LaunchConfiguration('f407_port')
 
@@ -41,6 +42,7 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument('depth_window_px', default_value='5'),
             DeclareLaunchArgument('expected_tray_count', default_value='3'),
             DeclareLaunchArgument('process_every_n_frames', default_value='3'),
+            DeclareLaunchArgument('start_tcp_sender', default_value='true'),
             DeclareLaunchArgument('f407_host', default_value='127.0.0.1'),
             DeclareLaunchArgument('f407_port', default_value='9000'),
             Node(
@@ -93,6 +95,7 @@ def generate_launch_description() -> LaunchDescription:
                 executable='matrix_tcp_sender',
                 name='matrix_tcp_sender',
                 output='screen',
+                condition=IfCondition(start_tcp_sender),
                 parameters=[
                     {
                         'tray_matrix_topic': '/sorting/tray_matrix',

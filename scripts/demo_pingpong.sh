@@ -250,6 +250,11 @@ print_quick_commands
 export WORKSPACE_DIR ROS_SETUP EXPECTED_TRAY_COUNT PROCESS_EVERY_N_FRAMES F407_HOST F407_PORT
 export USE_DEPTH="$USE_DEPTH_TO_RUN" DEPTH_IMAGE_TOPIC DEPTH_WINDOW_PX
 export USE_UNDISTORT COLOR_CAMERA_INFO_TOPIC
+if [[ "$CHECK_F407" == "1" ]]; then
+  export START_TCP_SENDER="true"
+else
+  export START_TCP_SENDER="false"
+fi
 
 # 干跑模式只打印最终会执行什么，适合现场先核对配置。
 if [[ "${DEMO_DRY_RUN:-0}" == "1" ]]; then

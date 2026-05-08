@@ -87,31 +87,25 @@ def detect_tray_geometry(
         )
     candidates = locate_tray_candidates(image, config)
     fitted_count = sum(1 for candidate in candidates if candidate.corners is not None)
-    if len(candidates) == config.expected_tray_count and fitted_count == config.expected_tray_count:
+    if not candidates:
         return TrayGeometryResult(
             status='ok',
-            message=f'found {len(candidates)} tray candidates with fitted edges',
-            candidates=candidates,
+            message=f'found 0 of up to {config.expected_tray_count} tray candidates',
+            candidates=[],
         )
-    if len(candidates) == config.expected_tray_count:
+    if fitted_count == len(candidates):
         return TrayGeometryResult(
-            status='partial_edges',
-            message=(
-                f'found {len(candidates)} tray candidates, '
-                f'fitted edges for {fitted_count}'
-            ),
-            candidates=candidates,
-        )
-    if candidates:
-        return TrayGeometryResult(
-            status='partial',
-            message=f'found {len(candidates)} of {config.expected_tray_count} tray candidates',
+            status='ok',
+            message=f'found {len(candidates)} of up to {config.expected_tray_count} tray candidates with fitted edges',
             candidates=candidates,
         )
     return TrayGeometryResult(
-        status='failed',
-        message='no tray candidates found',
-        candidates=[],
+        status='partial_edges',
+        message=(
+            f'found {len(candidates)} of up to {config.expected_tray_count} tray candidates, '
+            f'fitted edges for {fitted_count}'
+        ),
+        candidates=candidates,
     )
 
 
