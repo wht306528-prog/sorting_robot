@@ -40,6 +40,7 @@ class PingpongRealtimeNode(Node):
         super().__init__('pingpong_realtime_node')
 
         self._declare_parameters()
+        # 这些 topic/开关由 launch 或现场 env 注入，避免换相机时改 Python 代码。
         self._color_topic = self._string_parameter('color_image_topic', '/camera/camera/color/image_raw')
         self._depth_topic = self._string_parameter(
             'depth_image_topic',
@@ -55,14 +56,17 @@ class PingpongRealtimeNode(Node):
         self._log_every_sec = max(0.5, self._float_parameter('log_every_sec', 2.0))
         self._frame_index = 0
         self._last_log_time = 0.0
+        # 三组配置分别对应：整帧找多个盘、单盘透视矫正、单穴位颜色分类。
         self._geometry_config = self._geometry_config_from_parameters()
         self._edge_config = self._edge_config_from_parameters()
         self._pingpong_config = self._pingpong_config_from_parameters()
+        # 深度是可选输入；普通 USB/RGB 相机没有深度时 z 保持 0。
         self._latest_depth: Image | None = None
         self._warned_encoding = False
         self._warned_depth_waiting = False
         self._warned_depth_size = False
 
+        # debug_image 给人看，cells_json 给终端/日志看，TrayMatrix 给 F407/TCP 链路用。
         self._debug_publisher = self.create_publisher(Image, self._debug_topic, 10)
         self._cells_publisher = self.create_publisher(String, self._cells_topic, 10)
         self._matrix_publisher = self.create_publisher(TrayMatrix, self._tray_matrix_topic, 10)
@@ -74,6 +78,7 @@ class PingpongRealtimeNode(Node):
         )
         self._depth_subscription = None
         if self._use_depth:
+            # 这里要求深度图已经对齐到 RGB，否则同一个像素位置不能直接采样 z。
             self._depth_subscription = self.create_subscription(
                 Image,
                 self._depth_topic,
@@ -93,6 +98,7 @@ class PingpongRealtimeNode(Node):
         self.get_logger().info(f'每 {self._process_every_n} 帧处理一次')
 
     def _declare_parameters(self) -> None:
+        # ROS 参数分三类：输入输出 topic、实时性能开关、视觉阈值。
         self.declare_parameter('color_image_topic', '/camera/camera/color/image_raw')
         self.declare_parameter('depth_image_topic', '/camera/camera/aligned_depth_to_color/image_raw')
         self.declare_parameter('use_depth', True)
@@ -167,6 +173,7 @@ class PingpongRealtimeNode(Node):
     def _handle_image(self, message: Image) -> None:
         """处理一帧 RGB 图像：找盘、矫正、识别、发布调试图和矩阵。"""
         self._frame_index += 1
+        # 降频处理，避免低算力板子上每帧都跑视觉造成延迟堆积。
         if self._frame_index % self._process_every_n != 0:
             return
 
@@ -177,6 +184,7 @@ class PingpongRealtimeNode(Node):
                 self._warned_encoding = True
             return
 
+        # 第一步在整帧里找最多 3 个苗盘候选，并按从左到右分配 tray_id。
         geometry_result = detect_tray_geometry(image, self._geometry_config)
         debug_image = image.copy()
         payload_cells: list[dict[str, object]] = []
@@ -184,11 +192,14 @@ class PingpongRealtimeNode(Node):
 
         for candidate in geometry_result.candidates:
             if candidate.corners is None:
+                # 粗定位到了候选但没拟合出四角时，只画失败框，不写该盘真实识别。
                 self._draw_candidate(debug_image, candidate.tray_id, candidate.bbox, None, candidate.status)
                 continue
 
+            # 每个盘单独透视矫正，再复用单盘 10x5 穴位分类逻辑。
             rectified = rectify(image, candidate.corners, self._edge_config)
             detection_result = detect_pingpong_cells(rectified, self._pingpong_config)
+            # 深度采样必须从“矫正图穴位中心”反算回“原始 RGB 坐标”后再取 z。
             depth_by_position, source_by_position = self._sample_cell_depths(
                 source_message=message,
                 cells=detection_result.cells,
@@ -203,9 +214,11 @@ class PingpongRealtimeNode(Node):
                 )
             )
             detected_tray_ids.add(candidate.tray_id)
+            # 调试图保留整帧上的盘框，不把透视矫正图直接发布出去。
             self._draw_candidate(debug_image, candidate.tray_id, candidate.bbox, candidate.corners, detection_result.status)
 
         if not payload_cells:
+            # 完全没有可发布的真实穴位时，debug 图上直接写失败原因。
             self._draw_failure(debug_image, geometry_result.message)
 
         payload = self._payload(
@@ -238,6 +251,7 @@ class PingpongRealtimeNode(Node):
         matrix = TrayMatrix()
         matrix.header = source_message.header
         matrix.frame_id = int(payload['frame_index'])
+        # 下游协议固定 3*10*5=150 格；没检测到的盘也要补齐，不能变长。
         matrix.cells = tray_matrix_cells(
             payload_cells=payload['cells'],
             detected_tray_ids=set(payload['detected_tray_ids']),
@@ -254,6 +268,7 @@ class PingpongRealtimeNode(Node):
     ) -> dict[str, object]:
         """组织 JSON 载荷，按 tray_id 保留每个盘的识别矩阵。"""
         detected_tray_ids = detected_tray_ids or set()
+        # counts 是全画面总数，matrices_by_tray 才是按 1/2/3 号盘展开的结果。
         counts = {
             'yellow_ball': sum(1 for cell in cells if cell['class_name'] == 'yellow_ball'),
             'white_ball': sum(1 for cell in cells if cell['class_name'] == 'white_ball'),
@@ -287,6 +302,7 @@ class PingpongRealtimeNode(Node):
         """把单盘识别结果转换成带 tray_id 的字典列表。"""
         output: list[dict[str, object]] = []
         for cell in cells:
+            # u_rect/v_rect 是矫正图坐标；u_source/v_source 是原始相机图坐标。
             source_u, source_v = source_by_position.get((cell.row, cell.col), (0.0, 0.0))
             output.append(
                 {
@@ -313,6 +329,7 @@ class PingpongRealtimeNode(Node):
     ) -> tuple[dict[tuple[int, int], float], dict[tuple[int, int], tuple[float, float]]]:
         """把矫正图穴位中心反算到原图坐标，并在对齐深度图中采样 z。"""
         if not self._use_depth:
+            # 普通 RGB/USB 相机走这里，z 明确保持 0。
             return {}, {}
         if self._latest_depth is None:
             if not self._warned_depth_waiting:
@@ -333,6 +350,7 @@ class PingpongRealtimeNode(Node):
                 self._warned_depth_size = True
             return {}, {}
 
+        # 透视矫正改变了坐标系，深度图还在原始相机坐标系，所以必须反变换。
         source_points = rectified_cells_to_source_points(cells, corners, self._edge_config)
         depth_view = ros_depth_to_image_view(self._latest_depth)
         depth_by_position = {
@@ -430,10 +448,12 @@ def ros_image_to_bgr(message: Image) -> np.ndarray | None:
     array = np.frombuffer(message.data, dtype=np.uint8)
     if message.step < expected_step or len(array) < message.step * message.height:
         return None
+    # ROS Image 的 step 可能带行填充，先按 step reshape，再截取真实像素宽度。
     rows = array.reshape((message.height, message.step))
     compact = rows[:, :expected_step].reshape((message.height, message.width, 3))
     image = compact.copy()
     if message.encoding == 'rgb8':
+        # OpenCV 默认 BGR，ROS 相机常见 rgb8，需要翻转通道。
         image = image[:, :, ::-1].copy()
     return image
 
@@ -480,6 +500,7 @@ def rectified_cells_to_source_points(
         ],
         dtype=np.float32,
     )
+    # target 是矫正图中的四角，corners 是原始 RGB 图中的四角。
     matrix = cv2.getPerspectiveTransform(target, corners.astype(np.float32))
     rectified_points = np.asarray([[[float(cell.u), float(cell.v)]] for cell in cells], dtype=np.float32)
     if len(rectified_points) == 0:
@@ -555,6 +576,7 @@ def tray_matrix_cells(payload_cells: list[dict[str, object]], detected_tray_ids:
                 cell.col = col
                 cell.row = row
                 if source is None:
+                    # 检测到该盘但某格没有结果：confidence=0；整盘没检测到：补空且 confidence=1。
                     cell.class_id = CLASS_IDS['empty']
                     cell.confidence = 0.0 if tray_id in detected_tray_ids else 1.0
                     cell.u = 0.0

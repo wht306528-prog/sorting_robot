@@ -10,6 +10,7 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description() -> LaunchDescription:
+    # 启动参数这里只保存引用，真正的值由命令行或脚本传入。
     start_camera = LaunchConfiguration('start_camera')
     video_device = LaunchConfiguration('video_device')
     image_topic = LaunchConfiguration('image_topic')
@@ -23,6 +24,7 @@ def generate_launch_description() -> LaunchDescription:
 
     return LaunchDescription(
         [
+            # 这些参数由 scripts/demo_pingpong.sh 和 scripts/run_pingpong_demo.sh 统一注入。
             DeclareLaunchArgument('start_camera', default_value='true'),
             DeclareLaunchArgument('video_device', default_value='/dev/video0'),
             DeclareLaunchArgument('image_topic', default_value='/image_raw'),
@@ -34,6 +36,7 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument('f407_host', default_value='127.0.0.1'),
             DeclareLaunchArgument('f407_port', default_value='9000'),
             Node(
+                # 普通 USB 摄像头入口；topic 模式下 start_camera=false，不启动它。
                 package='v4l2_camera',
                 executable='v4l2_camera_node',
                 name='pingpong_usb_camera',
@@ -46,6 +49,7 @@ def generate_launch_description() -> LaunchDescription:
                 ],
             ),
             Node(
+                # 视觉节点：订阅 RGB/可选深度，发布 debug 图、JSON 和标准 TrayMatrix。
                 package='sorting_vision',
                 executable='pingpong_realtime_node',
                 name='pingpong_realtime_node',
@@ -62,6 +66,7 @@ def generate_launch_description() -> LaunchDescription:
                 ],
             ),
             Node(
+                # 下游通信节点：把 /sorting/tray_matrix 固定 150 格矩阵发送给 F407/W5500。
                 package='sorting_driver',
                 executable='matrix_tcp_sender',
                 name='matrix_tcp_sender',

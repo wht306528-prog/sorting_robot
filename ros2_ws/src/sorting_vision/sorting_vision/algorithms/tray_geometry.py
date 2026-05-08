@@ -122,7 +122,9 @@ def locate_tray_candidates(
     """按深色主体横向投影粗定位苗盘。"""
 
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    # 苗盘主体通常比背景更暗，先用灰度阈值抽出大块暗区域。
     mask = build_dark_body_mask(gray, config)
+    # 沿 x 方向投影，得到每个盘大致占据的横向区间。
     ranges = find_active_x_ranges(mask, config)
 
     candidates: list[TrayGeometryCandidate] = []
@@ -133,6 +135,7 @@ def locate_tray_candidates(
             candidates.append(candidate)
 
     if len(candidates) < config.expected_tray_count:
+        # 多个盘在投影上粘连时，尝试把过宽区间拆成多个候选。
         split_candidates = split_wide_ranges(mask, image_shape, ranges, candidates, config)
         if len(split_candidates) >= config.expected_tray_count:
             candidates = split_candidates
@@ -142,6 +145,7 @@ def locate_tray_candidates(
     candidates = dedupe_candidates(candidates)
     candidates.sort(key=lambda item: item.center[0])
     candidates = candidates[:config.expected_tray_count]
+    # tray_id 按画面从左到右分配：1 左盘，2 中盘，3 右盘。
     numbered = [
         TrayGeometryCandidate(
             tray_id=index,
@@ -158,19 +162,25 @@ def locate_tray_candidates(
 
 
 def build_dark_body_mask(gray: np.ndarray, config: TrayGeometryConfig) -> np.ndarray:
+    """生成苗盘暗色主体 mask。"""
+
     mask = (gray < config.dark_threshold).astype(np.uint8) * 255
     kernel_size = max(3, config.morphology_kernel_px)
     if kernel_size % 2 == 0:
         kernel_size += 1
     kernel = np.ones((kernel_size, kernel_size), np.uint8)
+    # 闭运算连接苗盘边框和暗孔洞，开运算去掉孤立噪声点。
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8), iterations=1)
     return mask
 
 
 def find_active_x_ranges(mask: np.ndarray, config: TrayGeometryConfig) -> list[tuple[int, int]]:
+    """从横向投影中找可能包含苗盘的 x 区间。"""
+
     active_threshold = mask.shape[0] * config.projection_active_ratio
     projection = (mask > 0).sum(axis=0).astype(np.float32)
+    # 平滑投影可以抑制单列噪声造成的断裂。
     projection = smooth_projection(projection, config.projection_smooth_px)
     active = projection > active_threshold
     min_width = max(20, int(round(mask.shape[1] * config.min_width_ratio)))
@@ -184,6 +194,8 @@ def candidate_from_x_range(
     x_end: int,
     config: TrayGeometryConfig,
 ) -> TrayGeometryCandidate | None:
+    """从一个 x 区间内提取面积和高度合格的苗盘粗候选。"""
+
     image_height, image_width = image_shape[:2]
     x_start = max(0, x_start)
     x_end = min(image_width - 1, x_end)
@@ -195,6 +207,7 @@ def candidate_from_x_range(
     if not contours:
         return None
 
+    # 面积和高度阈值用于过滤电线、阴影、桌面边缘等非苗盘暗块。
     min_area = image_height * image_width * config.min_area_ratio
     min_height = image_height * config.min_height_ratio
     best: tuple[np.ndarray, float] | None = None
@@ -248,6 +261,7 @@ def split_wide_ranges(
         width = x_end - x_start + 1
         if width < expected_width * 1.45:
             continue
+        # 根据估计盘宽把粘连区间均分，再分别提粗候选。
         split_count = int(round(width / max(1.0, expected_width)))
         split_count = max(2, min(config.expected_tray_count, split_count))
         for index in range(split_count):
@@ -275,6 +289,8 @@ def refine_candidate_edges(
     candidate: TrayGeometryCandidate,
     config: TrayGeometryConfig,
 ) -> TrayGeometryCandidate:
+    """对粗候选继续拟合外边四角。"""
+
     corners = fit_outer_corners_from_roi(gray, candidate.bbox, config)
     if corners is None:
         return TrayGeometryCandidate(
@@ -302,11 +318,14 @@ def fit_outer_corners_from_roi(
     bbox: tuple[int, int, int, int],
     config: TrayGeometryConfig,
 ) -> np.ndarray | None:
+    """在候选 ROI 内用边缘线拟合外框四角。"""
+
     x, y, width, height = pad_bbox(bbox, gray.shape[1], gray.shape[0], config.edge_roi_padding_px)
     roi = gray[y:y + height, x:x + width]
     if roi.size == 0:
         return None
 
+    # 先模糊再 Canny，减少纹理和小孔对外边线的干扰。
     blurred = cv2.GaussianBlur(roi, (5, 5), 0)
     edges = cv2.Canny(blurred, 45, 130)
     min_line_length = max(30, int(round(min(width, height) * config.hough_min_line_length_ratio)))
@@ -330,6 +349,7 @@ def fit_outer_corners_from_roi(
         )
         for line in lines
     ]
+    # Hough 得到很多线段后，分别挑靠近上下左右边的线段点去拟合直线。
     sides = select_side_line_points(raw_lines, bbox)
     fitted = {side: fit_line(points) for side, points in sides.items()}
     if any(value is None for value in fitted.values()):
@@ -358,6 +378,8 @@ def select_side_line_points(
     raw_lines: list[tuple[float, float, float, float]],
     bbox: tuple[int, int, int, int],
 ) -> dict[str, list[tuple[float, float]]]:
+    """把 Hough 线段按上下左右四条边归组。"""
+
     x, y, width, height = bbox
     left_target = x
     right_target = x + width
@@ -375,9 +397,11 @@ def select_side_line_points(
             continue
         angle = normalize_angle(float(np.degrees(np.arctan2(dy, dx))))
         if abs(angle) > 65.0:
+            # 近似竖直线用于左/右边。
             position = (x1 + x2) * 0.5
             vertical.append((position, length, line))
         elif abs(angle) < 25.0:
+            # 近似水平线用于上/下边。
             position = (y1 + y2) * 0.5
             horizontal.append((position, length, line))
 
@@ -394,10 +418,13 @@ def points_from_near_side(
     target: float,
     low_side: bool,
 ) -> list[tuple[float, float]]:
+    """选择最靠近目标边的一组线段端点。"""
+
     if not scored_lines:
         return []
     scored_lines = sorted(scored_lines, key=lambda item: abs(item[0] - target))
     anchor = scored_lines[0][0]
+    # 只取与最近线段位置相近的一簇，避免把内孔线段混进外边线拟合。
     selected = [
         line
         for position, _length, line in scored_lines
@@ -412,6 +439,8 @@ def points_from_near_side(
 
 
 def fit_line(points: list[tuple[float, float]]) -> tuple[float, float, float] | None:
+    """把点集拟合成 ax + by + c = 0 形式的直线。"""
+
     if len(points) < 2:
         return None
     data = np.asarray(points, dtype=np.float32)
@@ -429,6 +458,8 @@ def intersect_lines(
     line_a: tuple[float, float, float],
     line_b: tuple[float, float, float],
 ) -> tuple[float, float] | None:
+    """计算两条直线交点。"""
+
     a1, b1, c1 = line_a
     a2, b2, c2 = line_b
     determinant = a1 * b2 - a2 * b1
@@ -440,6 +471,8 @@ def intersect_lines(
 
 
 def corners_are_reasonable(points: np.ndarray, bbox: tuple[int, int, int, int]) -> bool:
+    """检查四角是否还在粗框附近，并且面积没有塌缩。"""
+
     x, y, width, height = bbox
     margin = max(width, height) * 0.30
     if np.any(points[:, 0] < x - margin) or np.any(points[:, 0] > x + width + margin):
@@ -456,6 +489,8 @@ def pad_bbox(
     image_height: int,
     padding: int,
 ) -> tuple[int, int, int, int]:
+    """给候选框加边距，同时裁剪到图像范围内。"""
+
     x, y, width, height = bbox
     x0 = max(0, x - padding)
     y0 = max(0, y - padding)
@@ -465,6 +500,8 @@ def pad_bbox(
 
 
 def normalize_angle(angle: float) -> float:
+    """把线段角度归一到 [-90, 90]，便于区分横线和竖线。"""
+
     while angle <= -90.0:
         angle += 180.0
     while angle > 90.0:
@@ -476,6 +513,8 @@ def estimate_expected_width(
     image_width: int,
     existing: list[TrayGeometryCandidate],
 ) -> float:
+    """估计单个苗盘在当前画面里的宽度。"""
+
     widths = [candidate.bbox[2] for candidate in existing if candidate.bbox[2] > 0]
     if widths:
         median_width = float(np.median(np.asarray(widths, dtype=np.float32)))
@@ -485,6 +524,8 @@ def estimate_expected_width(
 
 
 def dedupe_candidates(candidates: list[TrayGeometryCandidate]) -> list[TrayGeometryCandidate]:
+    """按 IoU 去掉重复候选，保留面积更大的那个。"""
+
     output: list[TrayGeometryCandidate] = []
     for candidate in sorted(candidates, key=lambda item: item.area, reverse=True):
         if any(bbox_iou(candidate.bbox, other.bbox) > 0.35 for other in output):
@@ -494,6 +535,8 @@ def dedupe_candidates(candidates: list[TrayGeometryCandidate]) -> list[TrayGeome
 
 
 def bbox_iou(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> float:
+    """计算两个候选框的交并比。"""
+
     ax, ay, aw, ah = a
     bx, by, bw, bh = b
     left = max(ax, bx)
@@ -506,12 +549,16 @@ def bbox_iou(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> floa
 
 
 def smooth_projection(projection: np.ndarray, kernel_size: int) -> np.ndarray:
+    """滑动平均平滑一维投影曲线。"""
+
     kernel_size = max(1, kernel_size)
     kernel = np.ones(kernel_size, dtype=np.float32) / float(kernel_size)
     return np.convolve(projection, kernel, mode='same')
 
 
 def active_ranges(active: np.ndarray, min_width: int, padding: int) -> list[tuple[int, int]]:
+    """把连续 active 的列合并成 x 区间。"""
+
     ranges: list[tuple[int, int]] = []
     start: int | None = None
     for index, value in enumerate(active):

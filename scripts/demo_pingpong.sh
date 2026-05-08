@@ -91,6 +91,7 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" || "${1:-}" == "help" ]]; then
   exit 0
 fi
 
+# 优先读取现场配置文件；没有配置文件时只用默认值，方便首次试运行。
 if [[ -f "$CONFIG_FILE" ]]; then
   # shellcheck disable=SC1090
   source "$CONFIG_FILE"
@@ -111,17 +112,19 @@ F407_HOST="${F407_HOST:-}"
 F407_PORT="${F407_PORT:-9000}"
 CHECK_F407="${CHECK_F407:-1}"
 
+# 基础文件检查先做完，避免 launch 起来后才发现工作区或脚本缺失。
 [[ -f "$ROS_SETUP" ]] || die "找不到 ROS2 环境: $ROS_SETUP"
 [[ -d "$WORKSPACE_DIR" ]] || die "找不到 ROS2 工作区: $WORKSPACE_DIR"
 [[ -f "$WORKSPACE_DIR/install/setup.sh" ]] || die "工作区还没有 build 或 install/setup.sh 不存在。请先执行: cd $WORKSPACE_DIR && colcon build"
 [[ -x "$REPO_DIR/scripts/run_pingpong_demo.sh" ]] || die "启动脚本不可执行: $REPO_DIR/scripts/run_pingpong_demo.sh"
+
+# 真实演示默认要求填 F407/W5500 地址，防止把矩阵发到本机模拟地址。
 if [[ "$CHECK_F407" == "1" ]]; then
   [[ -n "$F407_HOST" ]] || die "未配置 F407_HOST。请先执行: cp config/pingpong_demo.env.example config/pingpong_demo.env，然后把 F407_HOST 改成真实 F407/W5500 IP。"
   [[ "$F407_HOST" != "127.0.0.1" && "$F407_HOST" != "localhost" ]] || die "当前 F407_HOST=$F407_HOST，这是本机地址，不适合真实硬件测试。请在 config/pingpong_demo.env 中填写 F407/W5500 的真实 IP。"
 fi
 
-# Load ROS here only for preflight topic checks. run_pingpong_demo.sh will
-# source the same files again before launching.
+# 这里先加载 ROS，只用于启动前检查 topic；真正启动时 run_pingpong_demo.sh 会再次 source。
 set +u
 # shellcheck disable=SC1090
 source "$ROS_SETUP"
@@ -133,6 +136,7 @@ PROFILE_TO_RUN="$CAMERA_PROFILE"
 TOPIC_TO_RUN=""
 USE_DEPTH_TO_RUN="$USE_DEPTH"
 
+# 相机 profile 负责决定是否启动本机 USB 相机，还是订阅外部已有图像 topic。
 case "$CAMERA_PROFILE" in
   auto)
     if [[ -e /dev/video0 ]]; then
@@ -163,6 +167,7 @@ case "$CAMERA_PROFILE" in
     ;;
 esac
 
+# 深度输入自适应：USB 普通相机默认 z=0；topic/RGBD 模式才尝试使用深度。
 case "$USE_DEPTH_TO_RUN" in
   auto)
     if [[ "$PROFILE_TO_RUN" == "topic" && -n "$DEPTH_IMAGE_TOPIC" ]]; then
@@ -178,12 +183,14 @@ case "$USE_DEPTH_TO_RUN" in
     ;;
 esac
 
+# topic 模式下不负责启动相机，所以必须先确认图像 topic 已经存在。
 if [[ "$PROFILE_TO_RUN" == "topic" ]]; then
   if ! topic_exists "$TOPIC_TO_RUN"; then
     die "未发现 RGB 图像 topic: $TOPIC_TO_RUN。请先启动相机驱动，或修改 IMAGE_TOPIC。"
   fi
 fi
 
+# 启用深度时，必须使用已经对齐到 RGB 的深度图，否则像素坐标和 z 对不上。
 if [[ "$USE_DEPTH_TO_RUN" == "true" ]]; then
   if ! topic_exists "$DEPTH_IMAGE_TOPIC"; then
     die "USE_DEPTH=true，但未发现深度 topic: $DEPTH_IMAGE_TOPIC。请使用对齐到 RGB 的深度 topic，或设置 USE_DEPTH=false。"
@@ -215,6 +222,7 @@ print_quick_commands
 export WORKSPACE_DIR ROS_SETUP EXPECTED_TRAY_COUNT PROCESS_EVERY_N_FRAMES F407_HOST F407_PORT
 export USE_DEPTH="$USE_DEPTH_TO_RUN" DEPTH_IMAGE_TOPIC DEPTH_WINDOW_PX
 
+# 干跑模式只打印最终会执行什么，适合现场先核对配置。
 if [[ "${DEMO_DRY_RUN:-0}" == "1" ]]; then
   info "DEMO_DRY_RUN=1，只检查不启动。"
   if [[ "$PROFILE_TO_RUN" == "topic" ]]; then
@@ -225,6 +233,7 @@ if [[ "${DEMO_DRY_RUN:-0}" == "1" ]]; then
   exit 0
 fi
 
+# 正式演示前先探测 F407/W5500 TCP 端口，地址错会在这里直接报错。
 if [[ "$CHECK_F407" == "1" ]]; then
   info "正在检查 F407/W5500 TCP 连接: $F407_HOST:$F407_PORT"
   if ! timeout 2 bash -c "cat < /dev/null > /dev/tcp/$F407_HOST/$F407_PORT" 2>/dev/null; then
@@ -233,6 +242,7 @@ if [[ "$CHECK_F407" == "1" ]]; then
   info "F407/W5500 TCP 连接检查通过。"
 fi
 
+# 最后交给低层脚本统一启动 launch，避免两处维护 ros2 launch 参数。
 if [[ "$PROFILE_TO_RUN" == "topic" ]]; then
   exec "$REPO_DIR/scripts/run_pingpong_demo.sh" topic "$TOPIC_TO_RUN"
 fi

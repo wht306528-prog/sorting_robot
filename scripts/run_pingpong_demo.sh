@@ -40,6 +40,7 @@ EOF
 
 case "$PROFILE" in
   usb0)
+    # usb0/usb1 会启动 v4l2_camera，把普通 USB 摄像头转成 ROS2 图像 topic。
     START_CAMERA="${START_CAMERA:-true}"
     VIDEO_DEVICE="${VIDEO_DEVICE:-/dev/video0}"
     IMAGE_TOPIC="${IMAGE_TOPIC:-/image_raw}"
@@ -50,6 +51,7 @@ case "$PROFILE" in
     IMAGE_TOPIC="${IMAGE_TOPIC:-/image_raw}"
     ;;
   topic)
+    # topic 模式假设相机驱动已经在别处启动，本脚本只订阅指定图像 topic。
     if [[ -z "$TOPIC_ARG" && -z "$IMAGE_TOPIC" ]]; then
       usage
       echo "错误: topic 模式需要指定图像 topic，例如 /camera/camera/color/image_raw" >&2
@@ -71,15 +73,18 @@ case "$PROFILE" in
     ;;
 esac
 
+# 这里使用 setup.sh，符合当前工作区实际安装结果；不要默认写 setup.bash。
 source "$ROS_SETUP"
 cd "$WORKSPACE_DIR"
 source install/setup.sh
 
+# 打印最终启动参数，方便无显示器现场通过终端确认相机、深度和 F407 地址。
 echo "pingpong demo profile: $PROFILE"
 echo "start_camera=$START_CAMERA video_device=$VIDEO_DEVICE image_topic=$IMAGE_TOPIC"
 echo "use_depth=$USE_DEPTH depth_image_topic=$DEPTH_IMAGE_TOPIC"
 echo "expected_tray_count=$EXPECTED_TRAY_COUNT tcp=$F407_HOST:$F407_PORT"
 
+# launch 同时启动：可选 USB 相机节点、乒乓球实时识别节点、矩阵 TCP 发送节点。
 exec ros2 launch sorting_bringup pingpong_demo.launch.py \
   start_camera:="$START_CAMERA" \
   video_device:="$VIDEO_DEVICE" \

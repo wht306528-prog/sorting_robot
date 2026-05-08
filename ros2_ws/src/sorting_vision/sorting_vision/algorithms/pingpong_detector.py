@@ -1,4 +1,8 @@
-"""Ping-pong ball color baseline on rectified tray images."""
+"""矫正后单盘图像上的乒乓球颜色识别基线。
+
+当前阶段先服务“乒乓球吸取演示”，目标只区分 empty / white_ball / yellow_ball。
+这里是 OpenCV 颜色规则基线，不是 YOLO，也不是最终作物识别算法。
+"""
 
 from __future__ import annotations
 
@@ -17,6 +21,11 @@ CLASS_YELLOW = 'yellow_ball'
 
 @dataclass(frozen=True)
 class PingpongDetectorConfig:
+    """单穴位颜色分类参数。
+
+    阈值保持集中配置，现场光照变化时优先调这些参数，不要直接散改分类代码。
+    """
+
     rows: int = 10
     cols: int = 5
     roi_radius_ratio: float = 0.34
@@ -30,6 +39,8 @@ class PingpongDetectorConfig:
 
 @dataclass(frozen=True)
 class PingpongCell:
+    """一个穴位的乒乓球分类结果和调试比例。"""
+
     row: int
     col: int
     u: float
@@ -45,6 +56,8 @@ class PingpongCell:
 
 @dataclass(frozen=True)
 class PingpongDetectionResult:
+    """整盘 10x5 穴位的分类结果。"""
+
     status: str
     message: str
     cells: list[PingpongCell]
@@ -54,11 +67,14 @@ def detect_pingpong_cells(
     image: np.ndarray,
     config: PingpongDetectorConfig | None = None,
 ) -> PingpongDetectionResult:
+    """在透视矫正后的单盘图里生成 10x5 穴位分类。"""
+
     if config is None:
         config = PingpongDetectorConfig()
     if image.ndim != 3 or image.shape[2] != 3:
         return PingpongDetectionResult(status='failed', message='input image must be HxWx3', cells=[])
 
+    # 先复用苗盘穴位网格基线，拿到每个穴位中心，再在中心附近做颜色判断。
     grid_result = detect_hole_centers(image, config.hole_grid)
     if grid_result.status != 'ok':
         return PingpongDetectionResult(status='failed', message=grid_result.message, cells=[])
@@ -77,6 +93,8 @@ def estimate_roi_radius(
     image_shape: tuple[int, int],
     config: PingpongDetectorConfig,
 ) -> int:
+    """根据相邻穴位间距估计每个穴位的采样半径。"""
+
     if len(centers) >= 2:
         by_row: dict[int, list[HoleCenter]] = {}
         by_col: dict[int, list[HoleCenter]] = {}
@@ -97,9 +115,11 @@ def estimate_roi_radius(
                 for top, bottom in zip(ordered, ordered[1:])
             )
         if spacings:
+            # 用中位数抗单个异常穴位中心偏移，半径只覆盖穴位中心附近。
             return max(8, int(round(np.median(spacings) * config.roi_radius_ratio)))
 
     height, width = image_shape
+    # 如果中心数量不足，就退回到图像尺寸和行列数估算。
     return max(8, int(round(min(width / config.cols, height / config.rows) * config.roi_radius_ratio)))
 
 
@@ -109,6 +129,8 @@ def classify_cell(
     radius: int,
     config: PingpongDetectorConfig,
 ) -> PingpongCell:
+    """对单个穴位 ROI 做黄球/白球/空穴分类。"""
+
     height, width = image.shape[:2]
     u = int(round(center.u))
     v = int(round(center.v))
@@ -116,6 +138,7 @@ def classify_cell(
     y0 = max(0, v - radius)
     x1 = min(width, u + radius + 1)
     y1 = min(height, v + radius + 1)
+    # 只截取穴位中心附近的小块，避免相邻穴位或苗盘边框影响颜色比例。
     patch = image[y0:y1, x0:x1]
     if patch.size == 0:
         return PingpongCell(center.row, center.col, center.u, center.v, CLASS_EMPTY, 0.20, 0.0, 0.0, 0.0, 0.0, 0.0)
@@ -123,6 +146,7 @@ def classify_cell(
     local_u = u - x0
     local_v = v - y0
     yy, xx = np.ogrid[:patch.shape[0], :patch.shape[1]]
+    # 圆形 mask 贴近乒乓球/穴位形状，比方形 ROI 更少吃到边缘背景。
     circle = (xx - local_u) ** 2 + (yy - local_v) ** 2 <= radius ** 2
     valid_count = int(np.count_nonzero(circle))
     if valid_count <= 0:
@@ -136,11 +160,14 @@ def classify_cell(
     max_channel = np.maximum(np.maximum(red, green), blue)
     min_channel = np.minimum(np.minimum(red, green), blue)
 
+    # 黄色主要看 HSV 色相和饱和度，同时要求 R/G 亮度，减少棕色暗区误判。
     yellow = circle & (hue >= 10) & (hue <= 42) & (sat >= 55) & (val >= 80) & (red >= 100) & (green >= 75)
+    # 白色没有稳定色相，主要看低饱和、高亮度、RGB 通道差异不大。
     white = circle & (sat <= 70) & (val >= 135) & (min_channel >= 105) & ((max_channel - min_channel) <= 75)
     yellow_ratio = float(np.count_nonzero(yellow)) / valid_count
     white_ratio = float(np.count_nonzero(white)) / valid_count
     ball_ratio = yellow_ratio + white_ratio
+    # 连通域比例用于过滤零散反光点；真实球面通常形成较大的连续区域。
     yellow_component_ratio = largest_component_ratio(yellow, circle, valid_count)
     white_component_ratio = largest_component_ratio(white, circle, valid_count)
 
@@ -168,6 +195,8 @@ def classify_cell(
 
 
 def largest_component_ratio(mask: np.ndarray, circle: np.ndarray, valid_count: int) -> float:
+    """返回颜色 mask 中最大连通域占整个圆形 ROI 的比例。"""
+
     clipped = (mask & circle).astype(np.uint8)
     if int(np.count_nonzero(clipped)) <= 0:
         return 0.0
@@ -186,6 +215,11 @@ def classify_ratios(
     white_component_ratio: float,
     config: PingpongDetectorConfig,
 ) -> tuple[str, float]:
+    """根据颜色面积比例和连通域比例给出最终类别。
+
+    这里的 confidence 是规则基线的相对置信度，便于下游调试，不等同于神经网络概率。
+    """
+
     yellow_candidate = (
         yellow_ratio >= config.min_ball_ratio
         and yellow_component_ratio >= config.min_yellow_component_ratio
@@ -195,17 +229,20 @@ def classify_ratios(
         and white_component_ratio >= config.min_white_component_ratio
     )
     if not yellow_candidate and not white_candidate:
+        # 两类颜色都没达到阈值时按空穴输出；离阈值越远，空穴置信度越高。
         best_ratio = max(yellow_ratio, white_ratio)
         required = config.min_ball_ratio if yellow_ratio >= white_ratio else config.min_white_ratio
         confidence = 0.65 + min(0.25, (required - best_ratio) / max(required, 0.001) * 0.25)
         return CLASS_EMPTY, confidence
 
     if yellow_candidate and yellow_ratio >= white_ratio + config.min_color_margin:
+        # 黄球要求黄色比例明显压过白色比例，避免亮黄色反光被白球分支抢走。
         color_strength = min(1.0, yellow_ratio / max(config.min_ball_ratio, 0.001))
         margin = min(1.0, (yellow_ratio - white_ratio) / max(config.min_color_margin * 4.0, 0.001))
         return CLASS_YELLOW, 0.55 + 0.25 * color_strength + 0.15 * margin
 
     if white_candidate and white_ratio >= yellow_ratio + config.min_color_margin:
+        # 白球要求白色比例明显压过黄色比例，减少浅黄/反光区域误判。
         color_strength = min(1.0, white_ratio / max(config.min_white_ratio, 0.001))
         margin = min(1.0, (white_ratio - yellow_ratio) / max(config.min_color_margin * 4.0, 0.001))
         return CLASS_WHITE, 0.55 + 0.25 * color_strength + 0.15 * margin
@@ -221,6 +258,8 @@ def draw_pingpong_cells(
     image: np.ndarray,
     result: PingpongDetectionResult,
 ) -> np.ndarray:
+    """画出每个穴位的分类标注，供 debug 图检查。"""
+
     output = image.copy()
     for cell in result.cells:
         point = (int(round(cell.u)), int(round(cell.v)))
@@ -243,6 +282,8 @@ def draw_pingpong_cells(
 
 
 def class_color(class_name: str) -> tuple[int, int, int]:
+    """调试图里不同类别使用的 BGR 颜色。"""
+
     if class_name == CLASS_YELLOW:
         return (0, 210, 255)
     if class_name == CLASS_WHITE:
@@ -251,6 +292,8 @@ def class_color(class_name: str) -> tuple[int, int, int]:
 
 
 def class_label(class_name: str) -> str:
+    """调试图里不同类别的短标签。"""
+
     if class_name == CLASS_YELLOW:
         return 'Y'
     if class_name == CLASS_WHITE:
@@ -259,6 +302,8 @@ def class_label(class_name: str) -> str:
 
 
 def draw_counts(image: np.ndarray, result: PingpongDetectionResult) -> None:
+    """在调试图左上角画当前整盘统计。"""
+
     yellow_count = sum(1 for cell in result.cells if cell.class_name == CLASS_YELLOW)
     white_count = sum(1 for cell in result.cells if cell.class_name == CLASS_WHITE)
     empty_count = sum(1 for cell in result.cells if cell.class_name == CLASS_EMPTY)
