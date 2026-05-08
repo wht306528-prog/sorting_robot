@@ -1,4 +1,4 @@
-"""Launch the USB camera ping-pong sorting demo."""
+"""启动乒乓球分拣演示链路。"""
 
 from __future__ import annotations
 

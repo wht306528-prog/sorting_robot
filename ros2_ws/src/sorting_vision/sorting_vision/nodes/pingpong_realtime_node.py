@@ -1,4 +1,4 @@
-"""Realtime ping-pong tray classifier node."""
+"""实时乒乓球苗盘识别节点。"""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ CLASS_IDS = {
 
 
 class PingpongRealtimeNode(Node):
-    """Subscribe to RGB images, classify one tray, and publish debug output."""
+    """订阅 RGB/可选深度图，识别画面中的多个乒乓球苗盘并发布矩阵。"""
 
     def __init__(self) -> None:
         super().__init__('pingpong_realtime_node')
@@ -124,9 +124,11 @@ class PingpongRealtimeNode(Node):
         self.declare_parameter('min_color_margin', 0.035)
 
     def _handle_depth(self, message: Image) -> None:
+        """保存最新一帧对齐深度图。"""
         self._latest_depth = message
 
     def _geometry_config_from_parameters(self) -> TrayGeometryConfig:
+        """从 ROS 参数生成整帧多盘几何检测配置。"""
         return TrayGeometryConfig(
             expected_tray_count=self._expected_tray_count,
             dark_threshold=self._int_parameter('geometry_dark_threshold', 85),
@@ -141,6 +143,7 @@ class PingpongRealtimeNode(Node):
         )
 
     def _edge_config_from_parameters(self) -> TrayEdgeFitConfig:
+        """从 ROS 参数生成单盘透视矫正配置。"""
         return TrayEdgeFitConfig(
             dark_threshold=self._int_parameter('dark_threshold', 95),
             close_kernel_ratio=self._float_parameter('close_kernel_ratio', 0.045),
@@ -149,6 +152,7 @@ class PingpongRealtimeNode(Node):
         )
 
     def _pingpong_config_from_parameters(self) -> PingpongDetectorConfig:
+        """从 ROS 参数生成乒乓球颜色分类配置。"""
         return PingpongDetectorConfig(
             roi_radius_ratio=self._float_parameter('roi_radius_ratio', 0.34),
             min_ball_ratio=self._float_parameter('min_ball_ratio', 0.16),
@@ -161,6 +165,7 @@ class PingpongRealtimeNode(Node):
         )
 
     def _handle_image(self, message: Image) -> None:
+        """处理一帧 RGB 图像：找盘、矫正、识别、发布调试图和矩阵。"""
         self._frame_index += 1
         if self._frame_index % self._process_every_n != 0:
             return
@@ -217,16 +222,19 @@ class PingpongRealtimeNode(Node):
         self._log_summary(payload)
 
     def _publish_debug_image(self, image, source_message: Image) -> None:
+        """发布带有盘位置和识别状态的调试图。"""
         debug_message = bgr_to_ros_image(image, source_message)
         debug_message.header = source_message.header
         self._debug_publisher.publish(debug_message)
 
     def _publish_cells(self, payload: dict[str, object]) -> None:
+        """发布便于终端查看的 JSON 识别结果。"""
         message = String()
         message.data = json.dumps(payload, ensure_ascii=False)
         self._cells_publisher.publish(message)
 
     def _publish_tray_matrix(self, source_message: Image, payload: dict[str, object]) -> None:
+        """发布给 F407/TCP 链路使用的标准 150 格 TrayMatrix。"""
         matrix = TrayMatrix()
         matrix.header = source_message.header
         matrix.frame_id = int(payload['frame_index'])
@@ -244,6 +252,7 @@ class PingpongRealtimeNode(Node):
         cells: list[dict[str, object]],
         detected_tray_ids: set[int] | None = None,
     ) -> dict[str, object]:
+        """组织 JSON 载荷，按 tray_id 保留每个盘的识别矩阵。"""
         detected_tray_ids = detected_tray_ids or set()
         counts = {
             'yellow_ball': sum(1 for cell in cells if cell['class_name'] == 'yellow_ball'),
@@ -275,6 +284,7 @@ class PingpongRealtimeNode(Node):
         depth_by_position: dict[tuple[int, int], float],
         source_by_position: dict[tuple[int, int], tuple[float, float]],
     ) -> list[dict[str, object]]:
+        """把单盘识别结果转换成带 tray_id 的字典列表。"""
         output: list[dict[str, object]] = []
         for cell in cells:
             source_u, source_v = source_by_position.get((cell.row, cell.col), (0.0, 0.0))
@@ -301,6 +311,7 @@ class PingpongRealtimeNode(Node):
         cells: list[PingpongCell],
         corners,
     ) -> tuple[dict[tuple[int, int], float], dict[tuple[int, int], tuple[float, float]]]:
+        """把矫正图穴位中心反算到原图坐标，并在对齐深度图中采样 z。"""
         if not self._use_depth:
             return {}, {}
         if self._latest_depth is None:
@@ -331,6 +342,7 @@ class PingpongRealtimeNode(Node):
         return depth_by_position, source_points
 
     def _log_summary(self, payload: dict[str, object]) -> None:
+        """按固定间隔输出一行简要统计，避免刷屏。"""
         now = time.monotonic()
         if now - self._last_log_time < self._log_every_sec:
             return
@@ -348,6 +360,7 @@ class PingpongRealtimeNode(Node):
 
     @staticmethod
     def _draw_failure(image, message: str) -> None:
+        """在调试图上标出整帧检测失败原因。"""
         import cv2
 
         cv2.putText(
@@ -363,6 +376,7 @@ class PingpongRealtimeNode(Node):
 
     @staticmethod
     def _draw_candidate(image, tray_id: int, bbox, corners, status: str) -> None:
+        """在调试图上标出单个盘候选框、角点和状态。"""
         import cv2
 
         x, y, width, height = bbox
@@ -409,6 +423,7 @@ class PingpongRealtimeNode(Node):
 
 
 def ros_image_to_bgr(message: Image) -> np.ndarray | None:
+    """把 ROS RGB/BGR 图像消息转换为 OpenCV BGR 图像。"""
     if message.encoding not in ('bgr8', 'rgb8'):
         return None
     expected_step = message.width * 3
@@ -424,6 +439,7 @@ def ros_image_to_bgr(message: Image) -> np.ndarray | None:
 
 
 def bgr_to_ros_image(image: np.ndarray, source_message: Image) -> Image:
+    """把 OpenCV BGR 图像转换回 ROS Image 消息。"""
     output = Image()
     output.header = source_message.header
     output.height = int(image.shape[0])
@@ -436,6 +452,7 @@ def bgr_to_ros_image(image: np.ndarray, source_message: Image) -> Image:
 
 
 def ros_depth_to_image_view(message: Image) -> DetectorImageView:
+    """把 ROS 深度图消息包装成复用深度采样函数需要的轻量视图。"""
     return DetectorImageView(
         width=message.width,
         height=message.height,
@@ -450,6 +467,7 @@ def rectified_cells_to_source_points(
     corners: np.ndarray,
     config: TrayEdgeFitConfig,
 ) -> dict[tuple[int, int], tuple[float, float]]:
+    """把矫正图中的穴位中心反变换回原始 RGB 图像坐标。"""
     import cv2
 
     padding = config.rectified_padding
@@ -474,6 +492,7 @@ def rectified_cells_to_source_points(
 
 
 def class_matrices_by_tray(cells: list[dict[str, object]], rows: int, cols: int) -> dict[str, list[list[str]]]:
+    """按 tray_id 生成便于 JSON 查看的人类可读分类矩阵。"""
     matrices = {
         str(tray_id): [['unknown' for _col in range(cols)] for _row in range(rows)]
         for tray_id in range(1, 4)
@@ -488,6 +507,7 @@ def class_matrices_by_tray(cells: list[dict[str, object]], rows: int, cols: int)
 
 
 def class_id_matrices_by_tray(cells: list[dict[str, object]], rows: int, cols: int) -> dict[str, list[list[int]]]:
+    """按 tray_id 生成便于 JSON 查看和调试的数字分类矩阵。"""
     matrices = {
         str(tray_id): [[-1 for _col in range(cols)] for _row in range(rows)]
         for tray_id in range(1, 4)
@@ -502,6 +522,7 @@ def class_id_matrices_by_tray(cells: list[dict[str, object]], rows: int, cols: i
 
 
 def class_matrix(cells, rows: int, cols: int) -> list[list[str]]:
+    """兼容旧调试代码的单盘字符串矩阵生成函数。"""
     matrix = [['unknown' for _col in range(cols)] for _row in range(rows)]
     for cell in cells:
         if 1 <= cell.row <= rows and 1 <= cell.col <= cols:
@@ -510,6 +531,7 @@ def class_matrix(cells, rows: int, cols: int) -> list[list[str]]:
 
 
 def class_id_matrix(cells, rows: int, cols: int) -> list[list[int]]:
+    """兼容旧调试代码的单盘数字矩阵生成函数。"""
     matrix = [[-1 for _col in range(cols)] for _row in range(rows)]
     for cell in cells:
         if 1 <= cell.row <= rows and 1 <= cell.col <= cols:
@@ -518,6 +540,7 @@ def class_id_matrix(cells, rows: int, cols: int) -> list[list[int]]:
 
 
 def tray_matrix_cells(payload_cells: list[dict[str, object]], detected_tray_ids: set[int]) -> list[TrayCell]:
+    """生成固定 150 格输出；检测到的盘填真实结果，未检测到的盘补 empty。"""
     by_position = {
         (int(cell['tray_id']), int(cell['row']), int(cell['col'])): cell
         for cell in payload_cells

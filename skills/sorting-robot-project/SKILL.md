@@ -1,74 +1,72 @@
 ---
 name: sorting-robot-project
-description: Use this skill whenever working in /home/wht/sorting_robot or discussing the seedling tray / ping-pong ball sorting robot project, ROS2 nodes, LubanCat deployment, F407 communication, tray matrix outputs, vision debug runs, git commits, or project status. It preserves project-specific conventions, current architecture, known baselines, and anti-footgun rules from prior collaboration.
+description: 在 /home/wht/sorting_robot 内工作，或讨论苗盘/乒乓球分拣机器人、ROS2 节点、鲁班猫部署、F407 通信、矩阵输出、视觉调试、git 提交和项目进度时使用。它保存本项目约定、当前架构、已知基线和防误操作规则。
 ---
 
-# Sorting Robot Project Skill
+# 分拣机器人项目 Skill
 
-## Non-Negotiable Collaboration Rules
+## 不可违反的协作规则
 
-- Communicate in Chinese by default. Be direct, factual, patient, and do not overclaim.
-- Do not treat debug visualization as final recognition. Always distinguish:
-  - `debug baseline`: useful for inspection, not production.
-  - `offline workflow`: works on saved images.
-  - `realtime ROS2 node`: works on live image topics.
-  - `F407/mechanical-arm ready`: publishes the standard matrix/control interface expected downstream.
-- Do not casually replace a currently acceptable baseline. New algorithm changes should be isolated as a new run or small scoped patch.
-- When the user is frustrated, answer the exact concern first, then continue work.
-- The user dislikes hidden assumptions and self-directed style drift. If a convention is known, follow it.
+- 默认用中文沟通。表达要直接、准确、耐心，不要夸大完成度。
+- 不要把调试可视化当成最终识别。必须区分：
+  - `调试基线`：便于检查，不等于生产可用。
+  - `离线流程`：能处理保存图片。
+  - `实时 ROS2 节点`：能处理实时图像 topic。
+  - `F407/机械臂可联调`：已经发布下游期望的标准矩阵/控制接口。
+- 不要随便替换当前可接受的基线。新算法改动应隔离为新 run 或小范围补丁。
+- 用户情绪激动时，先回答具体担忧，再继续做事。
+- 用户讨厌隐藏假设和自作主张。如果项目已有约定，必须遵守。
 
-## Git Rules
+## Git 规则
 
-- Commit messages must follow the existing project style:
+- 提交信息必须符合项目现有风格：
   - `English summary 中文说明`
-  - Example: `Publish pingpong TrayMatrix 发布乒乓球标准矩阵`
-- Before committing, run `git status --short` and avoid staging unrelated files.
-- Do not rewrite history unless the user explicitly agrees. If rewriting local unpushed history, say so clearly.
-- Never use destructive git commands unless explicitly requested.
+  - 示例：`Publish pingpong TrayMatrix 发布乒乓球标准矩阵`
+- 提交前运行 `git status --short`，不要暂存无关文件。
+- 未经用户明确同意，不要改写历史。如果要改写本地未推送历史，必须说清楚。
+- 除非用户明确要求，不要使用破坏性 git 命令。
 
-## Debug Output Rules
+## 调试输出规则
 
-- Put new debug outputs under `samples/debug_/runs/<run_name>/`.
-- Put the most useful visual summaries under `samples/debug_/runs/<run_name>/final_effects/`.
-- For multi-sample output, include an `_all_*.jpg` overview whenever practical.
-- `samples/` is ignored by git; do not delete raw samples unless explicitly asked.
-- Use `python3 scripts/archive_debug_outputs.py` after generating meaningful debug runs.
+- 新调试输出放在 `samples/debug_/runs/<run_name>/`。
+- 最重要的可视化汇总放在 `samples/debug_/runs/<run_name>/final_effects/`。
+- 多样本输出尽量包含 `_all_*.jpg` 总览图。
+- `samples/` 被 git 忽略；除非用户明确要求，不要删除原始样本。
+- 生成有意义的调试 run 后，使用 `python3 scripts/archive_debug_outputs.py` 归档。
 
-## Current Vision Architecture
+## 项目阶段边界
 
-## Project Stage Boundary
+项目有两个不同阶段，不要随便混在一起说：
 
-The project has two distinct target stages. Do not merge them casually:
+- 当前近期演示阶段：识别并吸取乒乓球。目标是穴位里的黄/白乒乓球，下游重点是给 F407 吸取测试提供可靠的矩阵/TCP 接口。
+- 最终项目阶段：识别并夹取苗盘作物。目标是作物/幼苗，下游动作是机械夹取或作物处理。
 
-- Current near-term demo stage: identify and suction ping-pong balls. The target objects are white/yellow ping-pong balls in tray holes, and the immediate downstream need is a reliable matrix/TCP interface for F407-driven suction testing.
-- Final project stage: identify and grip seedling-tray crops. The target objects are crops/seedlings, and the downstream action is mechanical gripping or crop handling.
+讨论算法、坐标、末端执行器或完成度时，必须说明对应哪个阶段。不能把乒乓球吸取完成说成最终作物夹取完成。
 
-When discussing algorithms, coordinates, end effectors, or readiness, state which stage is being addressed. Do not imply ping-pong suction completion equals final crop gripping completion.
+## 当前视觉架构
 
-## Current Vision Architecture
-
-Current offline/realtime vision pipeline:
+当前离线/实时视觉流程：
 
 ```text
 RGB image
-  -> tray outer border fit
-  -> perspective rectification
-  -> 10 x 5 hole grid
-  -> per-hole ping-pong classifier
+  -> 苗盘外框拟合
+  -> 透视矫正
+  -> 10 x 5 穴位网格
+  -> 单穴位乒乓球分类
   -> debug image / JSON / TrayMatrix
 ```
 
-Important files:
+重要文件：
 
-- `sorting_vision/algorithms/tray_edge_fit.py`: single-tray outer border fitting and rectification.
-- `sorting_vision/algorithms/tray_hole_grid.py`: rectified tray 10x5 hole center generation.
-- `sorting_vision/algorithms/pingpong_detector.py`: OpenCV baseline for `empty / white_ball / yellow_ball`.
-- `sorting_vision/debug_tools/pingpong_full_image_debug.py`: one-command offline whole-image ping-pong workflow.
-- `sorting_vision/nodes/pingpong_realtime_node.py`: realtime ROS2 node for camera topic input and matrix output.
+- `sorting_vision/algorithms/tray_edge_fit.py`：单盘外框拟合和透视矫正。
+- `sorting_vision/algorithms/tray_hole_grid.py`：矫正图中的 10x5 穴位中心生成。
+- `sorting_vision/algorithms/pingpong_detector.py`：`empty / white_ball / yellow_ball` 的 OpenCV 基线。
+- `sorting_vision/debug_tools/pingpong_full_image_debug.py`：离线整图乒乓球调试流程。
+- `sorting_vision/nodes/pingpong_realtime_node.py`：订阅相机 topic 并发布矩阵的实时 ROS2 节点。
 
-## Ping-Pong Class Mapping
+## 乒乓球类别映射
 
-For the current demo with ping-pong balls:
+当前乒乓球演示阶段：
 
 ```text
 0 = empty
@@ -76,29 +74,29 @@ For the current demo with ping-pong balls:
 2 = yellow_ball
 ```
 
-If the user or senior student defines the color-to-class mapping differently, update the mapping immediately and call it out.
+如果用户或学长定义了不同的颜色到类别映射，必须立即更新并明确说明。
 
-Current recognition is OpenCV-based, not trained YOLO:
+当前识别是 OpenCV 规则基线，不是训练后的 YOLO：
 
-- Yellow is relatively reliable using HSV yellow area and connected component checks.
-- White is harder because empty tray holes can contain light-colored circular structures.
-- Do not claim perfect recognition. Say it is a baseline unless tested live.
+- 黄色主要依赖 HSV 黄色区域和连通域检查，相对更稳。
+- 白色更难，因为空穴、反光或浅色结构可能干扰。
+- 不要声称识别完美。没有现场验证前，只能说是基线。
 
-## ROS2 Runtime State
+## ROS2 运行状态
 
-Main realtime node:
+主实时节点：
 
 ```bash
 ros2 run sorting_vision pingpong_realtime_node
 ```
 
-Default input:
+默认输入：
 
 ```text
 /camera/camera/color/image_raw
 ```
 
-Outputs:
+输出：
 
 ```text
 /sorting/pingpong/debug_image
@@ -106,55 +104,56 @@ Outputs:
 /sorting/tray_matrix
 ```
 
-`/sorting/pingpong/cells_json` includes:
+`/sorting/pingpong/cells_json` 包含：
 
-- `matrix`: 10x5 string matrix.
-- `matrix_ids`: 10x5 numeric matrix.
-- `cells`: per-cell row/col/class/confidence.
+- `matrices_by_tray`：按 tray_id 组织的 10x5 字符串矩阵。
+- `matrix_ids_by_tray`：按 tray_id 组织的 10x5 数字矩阵。
+- `cells`：每个穴位的 row/col/class/confidence 等信息。
 
-`/sorting/tray_matrix` is the standard downstream interface:
+`/sorting/tray_matrix` 是下游标准接口：
 
-- Message type: `sorting_interfaces/msg/TrayMatrix`.
-- Contains 150 `TrayCell` records.
-- Current ping-pong realtime node should detect up to three visible trays from the full frame, assign tray IDs left-to-right, and fill every detected tray with real recognition results.
-- Only trays that are not detected should be filled as empty to preserve the fixed 150-cell downstream format.
-- Do not describe single active-tray output as sufficient recognition for the current ping-pong suction stage.
+- 消息类型：`sorting_interfaces/msg/TrayMatrix`。
+- 固定包含 150 条 `TrayCell`。
+- 当前乒乓球实时节点应从整帧中最多检测 3 个可见盘，按从左到右分配 tray_id，并把每个检测到的盘填入真实识别结果。
+- 只有未检测到的盘才能补 empty，以保持下游固定 150 格格式。
+- 不能再把单 active-tray 输出描述成当前乒乓球吸取阶段足够的识别方案。
 
-Known limitation:
+已知限制：
 
-- Current ping-pong matrix has classification and rectified pixel centers.
-- It does not yet provide true depth `z` or camera/mechanical-arm coordinates.
-- Mechanical gripping still needs depth alignment, calibration, and coordinate conversion.
+- 当前乒乓球矩阵有分类和像素中心。
+- 普通 RGB/USB 相机下 `z=0`；RGBD 且使用对齐到 RGB 的深度 topic 时，`z` 可写入相机深度。
+- `z` 仍是相机深度，不是机械臂坐标。
+- 吸取/夹取动作仍需要相机到执行机构的标定和坐标转换。
 
-## Build and Source Notes
+## 构建和 source 说明
 
-This workspace may provide `install/setup.sh`, not `install/setup.bash`.
+本工作区可能提供的是 `install/setup.sh`，不是 `install/setup.bash`。
 
-Use:
+使用：
 
 ```bash
 cd /home/wht/sorting_robot/ros2_ws
 source install/setup.sh
 ```
 
-Build the vision package in this environment with:
+在本环境构建视觉包：
 
 ```bash
 colcon build --paths src/sorting_vision
 ```
 
-If `ros2 run` cannot find a package, first check whether the install setup file was sourced.
+如果 `ros2 run` 找不到包，先检查是否 source 了 install setup 文件。
 
-If `rqt_image_view` is missing from shell, source ROS base first:
+如果 shell 里找不到 `rqt_image_view`，先 source ROS 基础环境：
 
 ```bash
 source /opt/ros/humble/setup.sh
 source /home/wht/sorting_robot/ros2_ws/install/setup.sh
 ```
 
-## Matrix and F407 Interface
+## 矩阵和 F407 接口
 
-Existing downstream chain:
+当前下游链路：
 
 ```text
 /sorting/tray_matrix
@@ -163,39 +162,39 @@ Existing downstream chain:
   -> F407 / W5500
 ```
 
-The TCP sender expects exactly 150 cells:
+TCP 发送端期望固定 150 格：
 
 ```text
 3 trays * 10 rows * 5 cols = 150
 ```
 
-Tray numbering:
+盘编号：
 
 ```text
-tray_id=1 left tray
-tray_id=2 middle tray
-tray_id=3 right tray
+tray_id=1 左侧盘
+tray_id=2 中间盘
+tray_id=3 右侧盘
 ```
 
-Grid numbering:
+格子编号：
 
 ```text
-row 1 = top
-row 10 = bottom
-col 1 = left
-col 5 = right
+row 1 = 顶部
+row 10 = 底部
+col 1 = 左侧
+col 5 = 右侧
 ```
 
-This matches the user document and existing `TrayCell.msg`.
+这与用户文档和现有 `TrayCell.msg` 保持一致。
 
-## When Answering “Where Are We?”
+## 回答“现在到哪了”时
 
-Use this status framing:
+使用下面的状态框架：
 
-- Offline ping-pong whole-image recognition: works as a demo baseline.
-- Realtime ROS2 node: starts and publishes topics.
-- Camera live data: only verified when a camera is connected and `/camera/camera/color/image_raw` has message frequency.
-- Standard matrix output: present through `/sorting/tray_matrix`.
-- Full mechanical-arm readiness: not complete until depth/camera calibration/mechanical coordinate conversion and F407 command integration are verified.
+- 离线乒乓球整图识别：作为演示基线可用。
+- 实时 ROS2 节点：可以启动并发布 topic。
+- 相机实时数据：只有连接相机并确认图像 topic 有频率后才算验证。
+- 标准矩阵输出：通过 `/sorting/tray_matrix` 发布。
+- 完整机械臂可用：必须等深度/相机标定/机械坐标转换/F407 指令集成验证后才能说完成。
 
-Never say the mechanical-arm task is finished just because the vision node starts.
+不要因为视觉节点能启动，就说机械臂任务已经完成。
