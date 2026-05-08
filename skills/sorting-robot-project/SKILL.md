@@ -116,8 +116,9 @@ Outputs:
 
 - Message type: `sorting_interfaces/msg/TrayMatrix`.
 - Contains 150 `TrayCell` records.
-- Current ping-pong realtime node writes the detected single tray into configurable `active_tray_id` and fills the other trays as empty.
-- This is valid for interface testing, but not full three-tray recognition yet.
+- Current ping-pong realtime node should detect up to three visible trays from the full frame, assign tray IDs left-to-right, and fill every detected tray with real recognition results.
+- Only trays that are not detected should be filled as empty to preserve the fixed 150-cell downstream format.
+- Do not describe single active-tray output as sufficient recognition for the current ping-pong suction stage.
 
 Known limitation:
 

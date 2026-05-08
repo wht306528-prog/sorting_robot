@@ -16,7 +16,7 @@ def generate_launch_description() -> LaunchDescription:
     depth_image_topic = LaunchConfiguration('depth_image_topic')
     use_depth = LaunchConfiguration('use_depth')
     depth_window_px = LaunchConfiguration('depth_window_px')
-    active_tray_id = LaunchConfiguration('active_tray_id')
+    expected_tray_count = LaunchConfiguration('expected_tray_count')
     process_every_n_frames = LaunchConfiguration('process_every_n_frames')
     f407_host = LaunchConfiguration('f407_host')
     f407_port = LaunchConfiguration('f407_port')
@@ -29,7 +29,7 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument('depth_image_topic', default_value='/camera/camera/aligned_depth_to_color/image_raw'),
             DeclareLaunchArgument('use_depth', default_value='false'),
             DeclareLaunchArgument('depth_window_px', default_value='5'),
-            DeclareLaunchArgument('active_tray_id', default_value='1'),
+            DeclareLaunchArgument('expected_tray_count', default_value='3'),
             DeclareLaunchArgument('process_every_n_frames', default_value='3'),
             DeclareLaunchArgument('f407_host', default_value='127.0.0.1'),
             DeclareLaunchArgument('f407_port', default_value='9000'),
@@ -56,7 +56,7 @@ def generate_launch_description() -> LaunchDescription:
                         'depth_image_topic': depth_image_topic,
                         'use_depth': use_depth,
                         'depth_window_px': depth_window_px,
-                        'active_tray_id': active_tray_id,
+                        'expected_tray_count': expected_tray_count,
                         'process_every_n_frames': process_every_n_frames,
                     }
                 ],

@@ -21,7 +21,8 @@ from sorting_vision.algorithms.pingpong_detector import (
     detect_pingpong_cells,
     draw_pingpong_cells,
 )
-from sorting_vision.algorithms.tray_edge_fit import TrayEdgeFitConfig, fit_tray_edges
+from sorting_vision.algorithms.tray_edge_fit import TrayEdgeFitConfig, rectify
+from sorting_vision.algorithms.tray_geometry import TrayGeometryConfig, detect_tray_geometry
 from sorting_vision.algorithms.tray_hole_grid import TrayHoleGridConfig
 
 
@@ -49,11 +50,12 @@ class PingpongRealtimeNode(Node):
         self._tray_matrix_topic = self._string_parameter('tray_matrix_topic', '/sorting/tray_matrix')
         self._use_depth = self._bool_parameter('use_depth', True)
         self._depth_window_px = max(1, self._int_parameter('depth_window_px', 5))
-        self._active_tray_id = max(1, min(3, self._int_parameter('active_tray_id', 1)))
+        self._expected_tray_count = max(1, min(3, self._int_parameter('expected_tray_count', 3)))
         self._process_every_n = max(1, self._int_parameter('process_every_n_frames', 3))
         self._log_every_sec = max(0.5, self._float_parameter('log_every_sec', 2.0))
         self._frame_index = 0
         self._last_log_time = 0.0
+        self._geometry_config = self._geometry_config_from_parameters()
         self._edge_config = self._edge_config_from_parameters()
         self._pingpong_config = self._pingpong_config_from_parameters()
         self._latest_depth: Image | None = None
@@ -87,7 +89,7 @@ class PingpongRealtimeNode(Node):
         self.get_logger().info(f'正在发布乒乓球标注图：{self._debug_topic}')
         self.get_logger().info(f'正在发布乒乓球 JSON：{self._cells_topic}')
         self.get_logger().info(f'正在发布标准 TrayMatrix：{self._tray_matrix_topic}')
-        self.get_logger().info(f'当前实时识别结果写入 tray_id={self._active_tray_id}，其他苗盘补 empty')
+        self.get_logger().info(f'当前按整帧检测最多 {self._expected_tray_count} 个苗盘，左到右写入 tray_id')
         self.get_logger().info(f'每 {self._process_every_n} 帧处理一次')
 
     def _declare_parameters(self) -> None:
@@ -98,11 +100,20 @@ class PingpongRealtimeNode(Node):
         self.declare_parameter('debug_image_topic', '/sorting/pingpong/debug_image')
         self.declare_parameter('cells_json_topic', '/sorting/pingpong/cells_json')
         self.declare_parameter('tray_matrix_topic', '/sorting/tray_matrix')
-        self.declare_parameter('active_tray_id', 1)
+        self.declare_parameter('expected_tray_count', 3)
         self.declare_parameter('process_every_n_frames', 3)
         self.declare_parameter('log_every_sec', 2.0)
         self.declare_parameter('rows', 10)
         self.declare_parameter('cols', 5)
+        self.declare_parameter('geometry_dark_threshold', 85)
+        self.declare_parameter('geometry_projection_active_ratio', 0.10)
+        self.declare_parameter('geometry_projection_smooth_px', 19)
+        self.declare_parameter('geometry_min_width_ratio', 0.08)
+        self.declare_parameter('geometry_min_height_ratio', 0.35)
+        self.declare_parameter('geometry_min_area_ratio', 0.025)
+        self.declare_parameter('geometry_x_padding_px', 10)
+        self.declare_parameter('geometry_morphology_kernel_px', 17)
+        self.declare_parameter('geometry_edge_roi_padding_px', 12)
         self.declare_parameter('dark_threshold', 95)
         self.declare_parameter('close_kernel_ratio', 0.045)
         self.declare_parameter('min_area_ratio', 0.16)
@@ -114,6 +125,20 @@ class PingpongRealtimeNode(Node):
 
     def _handle_depth(self, message: Image) -> None:
         self._latest_depth = message
+
+    def _geometry_config_from_parameters(self) -> TrayGeometryConfig:
+        return TrayGeometryConfig(
+            expected_tray_count=self._expected_tray_count,
+            dark_threshold=self._int_parameter('geometry_dark_threshold', 85),
+            projection_active_ratio=self._float_parameter('geometry_projection_active_ratio', 0.10),
+            projection_smooth_px=self._int_parameter('geometry_projection_smooth_px', 19),
+            min_width_ratio=self._float_parameter('geometry_min_width_ratio', 0.08),
+            min_height_ratio=self._float_parameter('geometry_min_height_ratio', 0.35),
+            min_area_ratio=self._float_parameter('geometry_min_area_ratio', 0.025),
+            x_padding_px=self._int_parameter('geometry_x_padding_px', 10),
+            morphology_kernel_px=self._int_parameter('geometry_morphology_kernel_px', 17),
+            edge_roi_padding_px=self._int_parameter('geometry_edge_roi_padding_px', 12),
+        )
 
     def _edge_config_from_parameters(self) -> TrayEdgeFitConfig:
         return TrayEdgeFitConfig(
@@ -147,27 +172,44 @@ class PingpongRealtimeNode(Node):
                 self._warned_encoding = True
             return
 
-        edge_result = fit_tray_edges(image, self._edge_config)
-        if edge_result.status == 'ok' and edge_result.rectified is not None:
-            detection_result = detect_pingpong_cells(edge_result.rectified, self._pingpong_config)
-            debug_image = draw_pingpong_cells(edge_result.rectified, detection_result)
+        geometry_result = detect_tray_geometry(image, self._geometry_config)
+        debug_image = image.copy()
+        payload_cells: list[dict[str, object]] = []
+        detected_tray_ids: set[int] = set()
+
+        for candidate in geometry_result.candidates:
+            if candidate.corners is None:
+                self._draw_candidate(debug_image, candidate.tray_id, candidate.bbox, None, candidate.status)
+                continue
+
+            rectified = rectify(image, candidate.corners, self._edge_config)
+            detection_result = detect_pingpong_cells(rectified, self._pingpong_config)
             depth_by_position, source_by_position = self._sample_cell_depths(
                 source_message=message,
                 cells=detection_result.cells,
-                corners=edge_result.corners,
+                corners=candidate.corners,
             )
-            payload = self._payload(
-                message,
-                edge_result.status,
-                edge_result.message,
-                detection_result.cells,
-                depth_by_position,
-                source_by_position,
+            payload_cells.extend(
+                self._payload_cells_for_tray(
+                    tray_id=candidate.tray_id,
+                    cells=detection_result.cells,
+                    depth_by_position=depth_by_position,
+                    source_by_position=source_by_position,
+                )
             )
-        else:
-            debug_image = image.copy()
-            self._draw_failure(debug_image, edge_result.message)
-            payload = self._payload(message, edge_result.status, edge_result.message, [])
+            detected_tray_ids.add(candidate.tray_id)
+            self._draw_candidate(debug_image, candidate.tray_id, candidate.bbox, candidate.corners, detection_result.status)
+
+        if not payload_cells:
+            self._draw_failure(debug_image, geometry_result.message)
+
+        payload = self._payload(
+            message=message,
+            status=geometry_result.status,
+            status_message=geometry_result.message,
+            cells=payload_cells,
+            detected_tray_ids=detected_tray_ids,
+        )
 
         self._publish_debug_image(debug_image, message)
         self._publish_cells(payload)
@@ -190,7 +232,7 @@ class PingpongRealtimeNode(Node):
         matrix.frame_id = int(payload['frame_index'])
         matrix.cells = tray_matrix_cells(
             payload_cells=payload['cells'],
-            active_tray_id=self._active_tray_id,
+            detected_tray_ids=set(payload['detected_tray_ids']),
         )
         self._matrix_publisher.publish(matrix)
 
@@ -199,16 +241,14 @@ class PingpongRealtimeNode(Node):
         message: Image,
         status: str,
         status_message: str,
-        cells,
-        depth_by_position: dict[tuple[int, int], float] | None = None,
-        source_by_position: dict[tuple[int, int], tuple[float, float]] | None = None,
+        cells: list[dict[str, object]],
+        detected_tray_ids: set[int] | None = None,
     ) -> dict[str, object]:
-        depth_by_position = depth_by_position or {}
-        source_by_position = source_by_position or {}
+        detected_tray_ids = detected_tray_ids or set()
         counts = {
-            'yellow_ball': sum(1 for cell in cells if cell.class_name == 'yellow_ball'),
-            'white_ball': sum(1 for cell in cells if cell.class_name == 'white_ball'),
-            'empty': sum(1 for cell in cells if cell.class_name == 'empty'),
+            'yellow_ball': sum(1 for cell in cells if cell['class_name'] == 'yellow_ball'),
+            'white_ball': sum(1 for cell in cells if cell['class_name'] == 'white_ball'),
+            'empty': sum(1 for cell in cells if cell['class_name'] == 'empty'),
         }
         rows = self._int_parameter('rows', 10)
         cols = self._int_parameter('cols', 5)
@@ -222,10 +262,25 @@ class PingpongRealtimeNode(Node):
             'message': status_message,
             'counts': counts,
             'class_ids': CLASS_IDS,
-            'matrix': class_matrix(cells, rows, cols),
-            'matrix_ids': class_id_matrix(cells, rows, cols),
-            'cells': [
+            'detected_tray_ids': sorted(detected_tray_ids),
+            'matrices_by_tray': class_matrices_by_tray(cells, rows, cols),
+            'matrix_ids_by_tray': class_id_matrices_by_tray(cells, rows, cols),
+            'cells': cells,
+        }
+
+    @staticmethod
+    def _payload_cells_for_tray(
+        tray_id: int,
+        cells: list[PingpongCell],
+        depth_by_position: dict[tuple[int, int], float],
+        source_by_position: dict[tuple[int, int], tuple[float, float]],
+    ) -> list[dict[str, object]]:
+        output: list[dict[str, object]] = []
+        for cell in cells:
+            source_u, source_v = source_by_position.get((cell.row, cell.col), (0.0, 0.0))
+            output.append(
                 {
+                    'tray_id': tray_id,
                     'row': cell.row,
                     'col': cell.col,
                     'class_name': cell.class_name,
@@ -233,13 +288,12 @@ class PingpongRealtimeNode(Node):
                     'confidence': round(cell.confidence, 3),
                     'u_rect': round(cell.u, 3),
                     'v_rect': round(cell.v, 3),
-                    'u_source': round(source_by_position.get((cell.row, cell.col), (0.0, 0.0))[0], 3),
-                    'v_source': round(source_by_position.get((cell.row, cell.col), (0.0, 0.0))[1], 3),
+                    'u_source': round(source_u, 3),
+                    'v_source': round(source_v, 3),
                     'z_mm': round(depth_by_position.get((cell.row, cell.col), 0.0), 3),
                 }
-                for cell in cells
-            ],
-        }
+            )
+        return output
 
     def _sample_cell_depths(
         self,
@@ -303,6 +357,26 @@ class PingpongRealtimeNode(Node):
             cv2.FONT_HERSHEY_SIMPLEX,
             0.8,
             (0, 0, 255),
+            2,
+            cv2.LINE_AA,
+        )
+
+    @staticmethod
+    def _draw_candidate(image, tray_id: int, bbox, corners, status: str) -> None:
+        import cv2
+
+        x, y, width, height = bbox
+        color = (0, 220, 255) if corners is not None else (0, 0, 255)
+        cv2.rectangle(image, (x, y), (x + width, y + height), color, 2, cv2.LINE_AA)
+        if corners is not None:
+            cv2.polylines(image, [np.round(corners).astype(np.int32)], True, (0, 255, 0), 3, cv2.LINE_AA)
+        cv2.putText(
+            image,
+            f'tray {tray_id}: {status}',
+            (max(0, x), max(24, y - 8)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            color,
             2,
             cv2.LINE_AA,
         )
@@ -399,6 +473,34 @@ def rectified_cells_to_source_points(
     }
 
 
+def class_matrices_by_tray(cells: list[dict[str, object]], rows: int, cols: int) -> dict[str, list[list[str]]]:
+    matrices = {
+        str(tray_id): [['unknown' for _col in range(cols)] for _row in range(rows)]
+        for tray_id in range(1, 4)
+    }
+    for cell in cells:
+        tray_id = int(cell['tray_id'])
+        row = int(cell['row'])
+        col = int(cell['col'])
+        if 1 <= tray_id <= 3 and 1 <= row <= rows and 1 <= col <= cols:
+            matrices[str(tray_id)][row - 1][col - 1] = str(cell['class_name'])
+    return matrices
+
+
+def class_id_matrices_by_tray(cells: list[dict[str, object]], rows: int, cols: int) -> dict[str, list[list[int]]]:
+    matrices = {
+        str(tray_id): [[-1 for _col in range(cols)] for _row in range(rows)]
+        for tray_id in range(1, 4)
+    }
+    for cell in cells:
+        tray_id = int(cell['tray_id'])
+        row = int(cell['row'])
+        col = int(cell['col'])
+        if 1 <= tray_id <= 3 and 1 <= row <= rows and 1 <= col <= cols:
+            matrices[str(tray_id)][row - 1][col - 1] = int(cell['class_id'])
+    return matrices
+
+
 def class_matrix(cells, rows: int, cols: int) -> list[list[str]]:
     matrix = [['unknown' for _col in range(cols)] for _row in range(rows)]
     for cell in cells:
@@ -415,23 +517,23 @@ def class_id_matrix(cells, rows: int, cols: int) -> list[list[int]]:
     return matrix
 
 
-def tray_matrix_cells(payload_cells: list[dict[str, object]], active_tray_id: int) -> list[TrayCell]:
+def tray_matrix_cells(payload_cells: list[dict[str, object]], detected_tray_ids: set[int]) -> list[TrayCell]:
     by_position = {
-        (int(cell['row']), int(cell['col'])): cell
+        (int(cell['tray_id']), int(cell['row']), int(cell['col'])): cell
         for cell in payload_cells
     }
     cells: list[TrayCell] = []
     for tray_id in range(1, 4):
         for row in range(1, 11):
             for col in range(1, 6):
-                source = by_position.get((row, col)) if tray_id == active_tray_id else None
+                source = by_position.get((tray_id, row, col))
                 cell = TrayCell()
                 cell.tray_id = tray_id
                 cell.col = col
                 cell.row = row
                 if source is None:
                     cell.class_id = CLASS_IDS['empty']
-                    cell.confidence = 1.0 if tray_id != active_tray_id else 0.0
+                    cell.confidence = 0.0 if tray_id in detected_tray_ids else 1.0
                     cell.u = 0.0
                     cell.v = 0.0
                     cell.z = 0.0

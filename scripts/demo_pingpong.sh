@@ -105,7 +105,7 @@ IMAGE_TOPIC="${IMAGE_TOPIC:-}"
 USE_DEPTH="${USE_DEPTH:-auto}"
 DEPTH_IMAGE_TOPIC="${DEPTH_IMAGE_TOPIC:-/camera/camera/aligned_depth_to_color/image_raw}"
 DEPTH_WINDOW_PX="${DEPTH_WINDOW_PX:-5}"
-ACTIVE_TRAY_ID="${ACTIVE_TRAY_ID:-1}"
+EXPECTED_TRAY_COUNT="${EXPECTED_TRAY_COUNT:-3}"
 PROCESS_EVERY_N_FRAMES="${PROCESS_EVERY_N_FRAMES:-3}"
 F407_HOST="${F407_HOST:-}"
 F407_PORT="${F407_PORT:-9000}"
@@ -201,7 +201,7 @@ elif [[ "$PROFILE_TO_RUN" == "usb1" ]]; then
 else
   info "  usb_device=$PROFILE_TO_RUN"
 fi
-info "  active_tray_id=$ACTIVE_TRAY_ID"
+info "  expected_tray_count=$EXPECTED_TRAY_COUNT"
 info "  process_every_n_frames=$PROCESS_EVERY_N_FRAMES"
 info "  use_depth=$USE_DEPTH_TO_RUN"
 if [[ "$USE_DEPTH_TO_RUN" == "true" ]]; then
@@ -212,7 +212,7 @@ info "  check_f407=$CHECK_F407"
 
 print_quick_commands
 
-export WORKSPACE_DIR ROS_SETUP ACTIVE_TRAY_ID PROCESS_EVERY_N_FRAMES F407_HOST F407_PORT
+export WORKSPACE_DIR ROS_SETUP EXPECTED_TRAY_COUNT PROCESS_EVERY_N_FRAMES F407_HOST F407_PORT
 export USE_DEPTH="$USE_DEPTH_TO_RUN" DEPTH_IMAGE_TOPIC DEPTH_WINDOW_PX
 
 if [[ "${DEMO_DRY_RUN:-0}" == "1" ]]; then
