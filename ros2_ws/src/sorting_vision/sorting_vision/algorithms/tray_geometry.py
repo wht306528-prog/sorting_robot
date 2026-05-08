@@ -38,6 +38,7 @@ class TrayGeometryConfig:
     hough_threshold: int = 35
     hough_min_line_length_ratio: float = 0.35
     hough_max_line_gap_px: int = 18
+    split_connected_trays: bool = False
 
 
 @dataclass(frozen=True)
@@ -128,8 +129,9 @@ def locate_tray_candidates(
         if candidate is not None:
             candidates.append(candidate)
 
-    if len(candidates) < config.expected_tray_count:
+    if config.split_connected_trays and len(candidates) < config.expected_tray_count:
         # 多个盘在投影上粘连时，尝试把过宽区间拆成多个候选。
+        # 默认关闭：现场单个横放苗盘也会形成很宽的暗区，强行拆分会把一个盘误判成多个盘。
         split_candidates = split_wide_ranges(mask, image_shape, ranges, candidates, config)
         if len(split_candidates) >= config.expected_tray_count:
             candidates = split_candidates
@@ -491,7 +493,25 @@ def corners_are_reasonable(points: np.ndarray, bbox: tuple[int, int, int, int]) 
     if np.any(points[:, 1] < y - margin) or np.any(points[:, 1] > y + height + margin):
         return False
     area = abs(float(cv2.contourArea(points.astype(np.float32))))
-    return area >= width * height * 0.35
+    if area < width * height * 0.35:
+        return False
+
+    edge_lengths = [
+        float(np.linalg.norm(points[(index + 1) % 4] - points[index]))
+        for index in range(4)
+    ]
+    shortest = min(edge_lengths)
+    longest = max(edge_lengths)
+    if shortest <= 1.0 or longest / shortest > 5.0:
+        return False
+
+    rect = cv2.minAreaRect(points.astype(np.float32))
+    rect_width, rect_height = rect[1]
+    if rect_width <= 1.0 or rect_height <= 1.0:
+        return False
+    aspect = max(rect_width, rect_height) / min(rect_width, rect_height)
+    # 正常俯视/斜俯视苗盘不会退化成很细长的侧面条；侧面视角不适合输出吸取矩阵。
+    return aspect <= 3.2
 
 
 def pad_bbox(
