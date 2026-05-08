@@ -152,7 +152,24 @@ def locate_tray_candidates(
         )
         for index, candidate in enumerate(candidates, start=1)
     ]
-    return [refine_candidate_edges(gray, candidate, config) for candidate in numbered]
+    refined = [refine_candidate_edges(gray, candidate, config) for candidate in numbered]
+    # 只有四边拟合成功的候选才进入后续识别和矩阵输出。
+    # 现场画面里电线、桌腿、阴影也可能形成暗色粗框；如果继续把这些 coarse
+    # 候选画成 tray，会让用户误以为系统真的识别到了多个苗盘。
+    valid = [candidate for candidate in refined if candidate.corners is not None]
+    valid.sort(key=lambda item: item.center[0])
+    return [
+        TrayGeometryCandidate(
+            tray_id=index,
+            status=candidate.status,
+            message=candidate.message,
+            bbox=candidate.bbox,
+            center=candidate.center,
+            area=candidate.area,
+            corners=candidate.corners,
+        )
+        for index, candidate in enumerate(valid, start=1)
+    ]
 
 
 def build_dark_body_mask(gray: np.ndarray, config: TrayGeometryConfig) -> np.ndarray:
