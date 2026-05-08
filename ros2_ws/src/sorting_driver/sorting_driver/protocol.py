@@ -17,6 +17,8 @@
 
 注意：
 - 这里的 checksum 是早期调试用简单校验，不是最终工业通信校验。
+- checksum 只累加 150 行 CSV 数据行的原始 UTF-8 字节。
+- checksum 不包含 START 行、END 行，也不包含行尾换行符。
 - 后续如果学长的 F407 程序确定了 CRC16 或其他格式，需要同步修改本文档和代码。
 """
 
@@ -36,16 +38,14 @@ def format_tray_matrix_text_frame(message: TrayMatrix) -> str:
     后续 TCP 发送时，可以直接发送这个字符串的 UTF-8 编码。
     """
 
-    lines = [
-        f'START frame_id={message.frame_id} count={len(message.cells)}',
-    ]
+    start_line = f'START frame_id={message.frame_id} count={len(message.cells)}'
 
     # 每个 TrayCell 转成一行 CSV 风格文本，字段顺序必须和通信文档一致。
-    lines.extend(_format_cell(cell) for cell in message.cells)
+    data_lines = [_format_cell(cell) for cell in message.cells]
 
     # END 行带简单 checksum，方便 F407 或调试工具判断一帧是否完整。
-    lines.append(f'END checksum={calculate_checksum(lines)}')
-    return '\n'.join(lines)
+    end_line = f'END checksum={calculate_checksum(data_lines)}'
+    return '\n'.join([start_line, *data_lines, end_line])
 
 
 def validate_tray_matrix(message: TrayMatrix) -> list[str]:
@@ -94,12 +94,15 @@ def validate_tray_matrix(message: TrayMatrix) -> list[str]:
 def calculate_checksum(lines: list[str]) -> int:
     """计算文本协议的简单调试校验值。
 
-    算法：把已有行拼成 UTF-8 字节后求和，再对 65536 取余。
+    算法：只累加数据行本身的 UTF-8 字节，再对 65536 取余。
+    不包含 START 行、END 行，也不包含各行之间的换行符。
     这个算法方便早期验证，不适合作为最终强校验方案。
     """
 
-    payload = '\n'.join(lines).encode('utf-8')
-    return sum(payload) % 65536
+    total = 0
+    for line in lines:
+        total += sum(line.encode('utf-8'))
+    return total % 65536
 
 
 def _format_cell(cell) -> str:
