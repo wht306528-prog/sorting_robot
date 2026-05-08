@@ -39,7 +39,6 @@ class TrayGeometryConfig:
     hough_min_line_length_ratio: float = 0.35
     hough_max_line_gap_px: int = 18
     split_connected_trays: bool = False
-    use_hough_edge_refine: bool = False
 
 
 @dataclass(frozen=True)
@@ -305,12 +304,7 @@ def refine_candidate_edges(
 ) -> TrayGeometryCandidate:
     """对粗候选继续拟合外边四角。"""
 
-    if config.use_hough_edge_refine:
-        corners = fit_outer_corners_from_roi(gray, candidate.bbox, config)
-    else:
-        # 现场背景里桌边、门板、线缆也会给 Hough 提供强边线。
-        # 默认用暗色主体粗框生成保守四角，避免外框被背景线拉到苗盘外面。
-        corners = corners_from_bbox(candidate.bbox)
+    corners = fit_outer_corners_from_roi(gray, candidate.bbox, config)
     if corners is None:
         return TrayGeometryCandidate(
             tray_id=candidate.tray_id,
@@ -329,21 +323,6 @@ def refine_candidate_edges(
         center=candidate.center,
         area=candidate.area,
         corners=corners,
-    )
-
-
-def corners_from_bbox(bbox: tuple[int, int, int, int]) -> np.ndarray:
-    """从粗候选框生成四角，顺序为左上、右上、右下、左下。"""
-
-    x, y, width, height = bbox
-    return np.asarray(
-        [
-            [float(x), float(y)],
-            [float(x + width - 1), float(y)],
-            [float(x + width - 1), float(y + height - 1)],
-            [float(x), float(y + height - 1)],
-        ],
-        dtype=np.float32,
     )
 
 
