@@ -17,7 +17,9 @@ usage() {
   PINGPONG_DEMO_CONFIG=/path/to/pingpong_demo.env
   CAMERA_PROFILE=auto|usb0|usb1|realsense|topic
   IMAGE_TOPIC=/your/image/topic
+  COLOR_CAMERA_INFO_TOPIC=/your/color/camera_info
   USE_DEPTH=auto|true|false
+  USE_UNDISTORT=true|false
   DEPTH_IMAGE_TOPIC=/your/aligned_depth/topic
   F407_HOST=192.168.1.50
   F407_PORT=9000
@@ -106,6 +108,8 @@ CAMERA_PROFILE="${CAMERA_PROFILE:-auto}"
 IMAGE_TOPIC="${IMAGE_TOPIC:-}"
 USE_DEPTH="${USE_DEPTH:-auto}"
 DEPTH_IMAGE_TOPIC="${DEPTH_IMAGE_TOPIC:-/camera/camera/aligned_depth_to_color/image_raw}"
+COLOR_CAMERA_INFO_TOPIC="${COLOR_CAMERA_INFO_TOPIC:-/camera/camera/color/camera_info}"
+USE_UNDISTORT="${USE_UNDISTORT:-true}"
 DEPTH_WINDOW_PX="${DEPTH_WINDOW_PX:-5}"
 EXPECTED_TRAY_COUNT="${EXPECTED_TRAY_COUNT:-3}"
 PROCESS_EVERY_N_FRAMES="${PROCESS_EVERY_N_FRAMES:-3}"
@@ -143,6 +147,7 @@ case "$CAMERA_PROFILE" in
     if command -v rs-enumerate-devices >/dev/null 2>&1 && timeout 3 rs-enumerate-devices 2>/dev/null | grep -Eq 'D4|RealSense|Intel'; then
       PROFILE_TO_RUN="realsense"
       IMAGE_TOPIC="/camera/camera/color/image_raw"
+      COLOR_CAMERA_INFO_TOPIC="/camera/camera/color/camera_info"
       USE_DEPTH_TO_RUN="true"
     elif [[ -e /dev/video0 ]]; then
       PROFILE_TO_RUN="usb0"
@@ -166,6 +171,7 @@ case "$CAMERA_PROFILE" in
     command -v ros2 >/dev/null 2>&1 || die "找不到 ros2 命令，请检查 ROS2 环境。"
     ros2 pkg prefix realsense2_camera >/dev/null 2>&1 || die "CAMERA_PROFILE=realsense 需要安装 realsense2_camera，例如 ros-humble-realsense2-camera。"
     IMAGE_TOPIC="${IMAGE_TOPIC:-/camera/camera/color/image_raw}"
+    COLOR_CAMERA_INFO_TOPIC="${COLOR_CAMERA_INFO_TOPIC:-/camera/camera/color/camera_info}"
     DEPTH_IMAGE_TOPIC="${DEPTH_IMAGE_TOPIC:-/camera/camera/aligned_depth_to_color/image_raw}"
     PROFILE_TO_RUN="realsense"
     ;;
@@ -232,6 +238,10 @@ info "  use_depth=$USE_DEPTH_TO_RUN"
 if [[ "$USE_DEPTH_TO_RUN" == "true" ]]; then
   info "  depth_image_topic=$DEPTH_IMAGE_TOPIC"
 fi
+info "  use_undistort=$USE_UNDISTORT"
+if [[ "$USE_UNDISTORT" == "true" ]]; then
+  info "  color_camera_info_topic=$COLOR_CAMERA_INFO_TOPIC"
+fi
 info "  f407=$F407_HOST:$F407_PORT"
 info "  check_f407=$CHECK_F407"
 
@@ -239,6 +249,7 @@ print_quick_commands
 
 export WORKSPACE_DIR ROS_SETUP EXPECTED_TRAY_COUNT PROCESS_EVERY_N_FRAMES F407_HOST F407_PORT
 export USE_DEPTH="$USE_DEPTH_TO_RUN" DEPTH_IMAGE_TOPIC DEPTH_WINDOW_PX
+export USE_UNDISTORT COLOR_CAMERA_INFO_TOPIC
 
 # 干跑模式只打印最终会执行什么，适合现场先核对配置。
 if [[ "${DEMO_DRY_RUN:-0}" == "1" ]]; then

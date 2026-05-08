@@ -17,8 +17,10 @@ def generate_launch_description() -> LaunchDescription:
     start_realsense = LaunchConfiguration('start_realsense')
     video_device = LaunchConfiguration('video_device')
     image_topic = LaunchConfiguration('image_topic')
+    color_camera_info_topic = LaunchConfiguration('color_camera_info_topic')
     depth_image_topic = LaunchConfiguration('depth_image_topic')
     use_depth = LaunchConfiguration('use_depth')
+    use_undistort = LaunchConfiguration('use_undistort')
     depth_window_px = LaunchConfiguration('depth_window_px')
     expected_tray_count = LaunchConfiguration('expected_tray_count')
     process_every_n_frames = LaunchConfiguration('process_every_n_frames')
@@ -32,8 +34,10 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument('start_realsense', default_value='false'),
             DeclareLaunchArgument('video_device', default_value='/dev/video0'),
             DeclareLaunchArgument('image_topic', default_value='/image_raw'),
+            DeclareLaunchArgument('color_camera_info_topic', default_value='/camera/camera/color/camera_info'),
             DeclareLaunchArgument('depth_image_topic', default_value='/camera/camera/aligned_depth_to_color/image_raw'),
             DeclareLaunchArgument('use_depth', default_value='false'),
+            DeclareLaunchArgument('use_undistort', default_value='true'),
             DeclareLaunchArgument('depth_window_px', default_value='5'),
             DeclareLaunchArgument('expected_tray_count', default_value='3'),
             DeclareLaunchArgument('process_every_n_frames', default_value='3'),
@@ -73,8 +77,10 @@ def generate_launch_description() -> LaunchDescription:
                 parameters=[
                     {
                         'color_image_topic': image_topic,
+                        'color_camera_info_topic': color_camera_info_topic,
                         'depth_image_topic': depth_image_topic,
                         'use_depth': use_depth,
+                        'use_undistort': use_undistort,
                         'depth_window_px': depth_window_px,
                         'expected_tray_count': expected_tray_count,
                         'process_every_n_frames': process_every_n_frames,

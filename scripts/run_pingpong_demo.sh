@@ -9,8 +9,10 @@ START_CAMERA="${START_CAMERA:-}"
 START_REALSENSE="${START_REALSENSE:-false}"
 VIDEO_DEVICE="${VIDEO_DEVICE:-}"
 IMAGE_TOPIC="${IMAGE_TOPIC:-}"
+COLOR_CAMERA_INFO_TOPIC="${COLOR_CAMERA_INFO_TOPIC:-/camera/camera/color/camera_info}"
 DEPTH_IMAGE_TOPIC="${DEPTH_IMAGE_TOPIC:-/camera/camera/aligned_depth_to_color/image_raw}"
 USE_DEPTH="${USE_DEPTH:-}"
+USE_UNDISTORT="${USE_UNDISTORT:-true}"
 DEPTH_WINDOW_PX="${DEPTH_WINDOW_PX:-5}"
 EXPECTED_TRAY_COUNT="${EXPECTED_TRAY_COUNT:-3}"
 PROCESS_EVERY_N_FRAMES="${PROCESS_EVERY_N_FRAMES:-3}"
@@ -37,6 +39,8 @@ usage() {
   F407_HOST=127.0.0.1
   F407_PORT=9000
   USE_DEPTH=false|true
+  USE_UNDISTORT=false|true
+  COLOR_CAMERA_INFO_TOPIC=/camera/camera/color/camera_info
   DEPTH_IMAGE_TOPIC=/camera/camera/aligned_depth_to_color/image_raw
 EOF
 }
@@ -62,6 +66,7 @@ case "$PROFILE" in
     START_CAMERA="false"
     START_REALSENSE="true"
     IMAGE_TOPIC="${IMAGE_TOPIC:-/camera/camera/color/image_raw}"
+    COLOR_CAMERA_INFO_TOPIC="${COLOR_CAMERA_INFO_TOPIC:-/camera/camera/color/camera_info}"
     DEPTH_IMAGE_TOPIC="${DEPTH_IMAGE_TOPIC:-/camera/camera/aligned_depth_to_color/image_raw}"
     USE_DEPTH="${USE_DEPTH:-true}"
     ;;
@@ -99,6 +104,7 @@ source install/setup.sh
 echo "pingpong demo profile: $PROFILE"
 echo "start_camera=$START_CAMERA start_realsense=$START_REALSENSE video_device=$VIDEO_DEVICE image_topic=$IMAGE_TOPIC"
 echo "use_depth=$USE_DEPTH depth_image_topic=$DEPTH_IMAGE_TOPIC"
+echo "use_undistort=$USE_UNDISTORT color_camera_info_topic=$COLOR_CAMERA_INFO_TOPIC"
 echo "expected_tray_count=$EXPECTED_TRAY_COUNT tcp=$F407_HOST:$F407_PORT"
 
 # launch 同时启动：可选 USB 相机节点、乒乓球实时识别节点、矩阵 TCP 发送节点。
@@ -107,8 +113,10 @@ exec ros2 launch sorting_bringup pingpong_demo.launch.py \
   start_realsense:="$START_REALSENSE" \
   video_device:="$VIDEO_DEVICE" \
   image_topic:="$IMAGE_TOPIC" \
+  color_camera_info_topic:="$COLOR_CAMERA_INFO_TOPIC" \
   depth_image_topic:="$DEPTH_IMAGE_TOPIC" \
   use_depth:="$USE_DEPTH" \
+  use_undistort:="$USE_UNDISTORT" \
   depth_window_px:="$DEPTH_WINDOW_PX" \
   expected_tray_count:="$EXPECTED_TRAY_COUNT" \
   process_every_n_frames:="$PROCESS_EVERY_N_FRAMES" \

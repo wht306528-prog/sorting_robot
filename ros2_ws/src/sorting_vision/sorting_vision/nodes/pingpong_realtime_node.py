@@ -9,7 +9,7 @@ import numpy as np
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import CameraInfo, Image
 from std_msgs.msg import String
 
 from sorting_interfaces.msg import TrayCell, TrayMatrix
@@ -42,6 +42,10 @@ class PingpongRealtimeNode(Node):
         self._declare_parameters()
         # 这些 topic/开关由 launch 或现场 env 注入，避免换相机时改 Python 代码。
         self._color_topic = self._string_parameter('color_image_topic', '/camera/camera/color/image_raw')
+        self._color_camera_info_topic = self._string_parameter(
+            'color_camera_info_topic',
+            '/camera/camera/color/camera_info',
+        )
         self._depth_topic = self._string_parameter(
             'depth_image_topic',
             '/camera/camera/aligned_depth_to_color/image_raw',
@@ -50,6 +54,7 @@ class PingpongRealtimeNode(Node):
         self._cells_topic = self._string_parameter('cells_json_topic', '/sorting/pingpong/cells_json')
         self._tray_matrix_topic = self._string_parameter('tray_matrix_topic', '/sorting/tray_matrix')
         self._use_depth = self._bool_parameter('use_depth', True)
+        self._use_undistort = self._bool_parameter('use_undistort', True)
         self._depth_window_px = max(1, self._int_parameter('depth_window_px', 5))
         self._expected_tray_count = max(1, min(3, self._int_parameter('expected_tray_count', 3)))
         self._process_every_n = max(1, self._int_parameter('process_every_n_frames', 3))
@@ -62,9 +67,12 @@ class PingpongRealtimeNode(Node):
         self._pingpong_config = self._pingpong_config_from_parameters()
         # 深度是可选输入；普通 USB/RGB 相机没有深度时 z 保持 0。
         self._latest_depth: Image | None = None
+        self._camera_matrix: np.ndarray | None = None
+        self._dist_coeffs: np.ndarray | None = None
         self._warned_encoding = False
         self._warned_depth_waiting = False
         self._warned_depth_size = False
+        self._warned_camera_info_waiting = False
 
         # debug_image 给人看，cells_json 给终端/日志看，TrayMatrix 给 F407/TCP 链路用。
         self._debug_publisher = self.create_publisher(Image, self._debug_topic, 10)
@@ -76,6 +84,15 @@ class PingpongRealtimeNode(Node):
             self._handle_image,
             qos_profile_sensor_data,
         )
+        self._camera_info_subscription = None
+        if self._use_undistort:
+            # 去畸变所需的 K/D 来自 RGB CameraInfo；F407 后续只接收校正后的 u/v/z。
+            self._camera_info_subscription = self.create_subscription(
+                CameraInfo,
+                self._color_camera_info_topic,
+                self._handle_color_camera_info,
+                qos_profile_sensor_data,
+            )
         self._depth_subscription = None
         if self._use_depth:
             # 这里要求深度图已经对齐到 RGB，否则同一个像素位置不能直接采样 z。
@@ -87,6 +104,10 @@ class PingpongRealtimeNode(Node):
             )
 
         self.get_logger().info(f'正在订阅 RGB 图像：{self._color_topic}')
+        if self._use_undistort:
+            self.get_logger().info(f'正在订阅 RGB 相机内参：{self._color_camera_info_topic}')
+        else:
+            self.get_logger().info('已关闭 u/v 去畸变：TrayCell.u/v 将使用原图坐标')
         if self._use_depth:
             self.get_logger().info(f'正在订阅对齐深度图像：{self._depth_topic}')
         else:
@@ -100,8 +121,10 @@ class PingpongRealtimeNode(Node):
     def _declare_parameters(self) -> None:
         # ROS 参数分三类：输入输出 topic、实时性能开关、视觉阈值。
         self.declare_parameter('color_image_topic', '/camera/camera/color/image_raw')
+        self.declare_parameter('color_camera_info_topic', '/camera/camera/color/camera_info')
         self.declare_parameter('depth_image_topic', '/camera/camera/aligned_depth_to_color/image_raw')
         self.declare_parameter('use_depth', True)
+        self.declare_parameter('use_undistort', True)
         self.declare_parameter('depth_window_px', 5)
         self.declare_parameter('debug_image_topic', '/sorting/pingpong/debug_image')
         self.declare_parameter('cells_json_topic', '/sorting/pingpong/cells_json')
@@ -132,6 +155,11 @@ class PingpongRealtimeNode(Node):
     def _handle_depth(self, message: Image) -> None:
         """保存最新一帧对齐深度图。"""
         self._latest_depth = message
+
+    def _handle_color_camera_info(self, message: CameraInfo) -> None:
+        """保存 RGB 相机内参，用于对输出给 F407 的 u/v 去畸变。"""
+        self._camera_matrix = np.asarray(message.k, dtype=np.float64).reshape(3, 3)
+        self._dist_coeffs = np.asarray(message.d, dtype=np.float64).reshape(-1, 1)
 
     def _geometry_config_from_parameters(self) -> TrayGeometryConfig:
         """从 ROS 参数生成整帧多盘几何检测配置。"""
@@ -205,12 +233,14 @@ class PingpongRealtimeNode(Node):
                 cells=detection_result.cells,
                 corners=candidate.corners,
             )
+            undistorted_by_position = self._undistort_points_by_position(source_by_position)
             payload_cells.extend(
                 self._payload_cells_for_tray(
                     tray_id=candidate.tray_id,
                     cells=detection_result.cells,
                     depth_by_position=depth_by_position,
                     source_by_position=source_by_position,
+                    undistorted_by_position=undistorted_by_position,
                 )
             )
             detected_tray_ids.add(candidate.tray_id)
@@ -298,12 +328,18 @@ class PingpongRealtimeNode(Node):
         cells: list[PingpongCell],
         depth_by_position: dict[tuple[int, int], float],
         source_by_position: dict[tuple[int, int], tuple[float, float]],
+        undistorted_by_position: dict[tuple[int, int], tuple[float, float]],
     ) -> list[dict[str, object]]:
         """把单盘识别结果转换成带 tray_id 的字典列表。"""
         output: list[dict[str, object]] = []
         for cell in cells:
             # u_rect/v_rect 是矫正图坐标；u_source/v_source 是原始相机图坐标。
             source_u, source_v = source_by_position.get((cell.row, cell.col), (0.0, 0.0))
+            # u_undistorted/v_undistorted 是去畸变后的原图坐标，发给 F407 算 Xc/Yc。
+            undistorted_u, undistorted_v = undistorted_by_position.get(
+                (cell.row, cell.col),
+                (source_u, source_v),
+            )
             output.append(
                 {
                     'tray_id': tray_id,
@@ -316,6 +352,8 @@ class PingpongRealtimeNode(Node):
                     'v_rect': round(cell.v, 3),
                     'u_source': round(source_u, 3),
                     'v_source': round(source_v, 3),
+                    'u_undistorted': round(undistorted_u, 3),
+                    'v_undistorted': round(undistorted_v, 3),
                     'z_mm': round(depth_by_position.get((cell.row, cell.col), 0.0), 3),
                 }
             )
@@ -328,16 +366,18 @@ class PingpongRealtimeNode(Node):
         corners,
     ) -> tuple[dict[tuple[int, int], float], dict[tuple[int, int], tuple[float, float]]]:
         """把矫正图穴位中心反算到原图坐标，并在对齐深度图中采样 z。"""
+        if corners is None:
+            return {}, {}
+        # 无论是否启用深度，都要先得到原图坐标；这是去畸变和 F407 u/v 的来源。
+        source_points = rectified_cells_to_source_points(cells, corners, self._edge_config)
         if not self._use_depth:
             # 普通 RGB/USB 相机走这里，z 明确保持 0。
-            return {}, {}
+            return {}, source_points
         if self._latest_depth is None:
             if not self._warned_depth_waiting:
                 self.get_logger().warning('尚未收到深度图像，本帧 TrayCell.z=0')
                 self._warned_depth_waiting = True
-            return {}, {}
-        if corners is None:
-            return {}, {}
+            return {}, source_points
         if (
             self._latest_depth.width != source_message.width
             or self._latest_depth.height != source_message.height
@@ -348,16 +388,49 @@ class PingpongRealtimeNode(Node):
                     '请使用对齐到 RGB 的深度图 topic。'
                 )
                 self._warned_depth_size = True
-            return {}, {}
+            return {}, source_points
 
         # 透视矫正改变了坐标系，深度图还在原始相机坐标系，所以必须反变换。
-        source_points = rectified_cells_to_source_points(cells, corners, self._edge_config)
         depth_view = ros_depth_to_image_view(self._latest_depth)
         depth_by_position = {
             position: sample_depth_mm(depth_view, point[0], point[1], self._depth_window_px)
             for position, point in source_points.items()
         }
         return depth_by_position, source_points
+
+    def _undistort_points_by_position(
+        self,
+        source_points: dict[tuple[int, int], tuple[float, float]],
+    ) -> dict[tuple[int, int], tuple[float, float]]:
+        """使用 RGB CameraInfo 的 K/D 对原图穴位中心去畸变。"""
+        if not source_points:
+            return {}
+        if not self._use_undistort:
+            return dict(source_points)
+        if self._camera_matrix is None or self._dist_coeffs is None:
+            if not self._warned_camera_info_waiting:
+                self.get_logger().warning('尚未收到 RGB CameraInfo，本帧 TrayCell.u/v 暂用原图坐标')
+                self._warned_camera_info_waiting = True
+            return dict(source_points)
+
+        import cv2
+
+        positions = list(source_points.keys())
+        points = np.asarray(
+            [[[source_points[position][0], source_points[position][1]]] for position in positions],
+            dtype=np.float32,
+        )
+        # P=K 表示输出仍是像素坐标，只是已经按相机畸变参数校正。
+        corrected = cv2.undistortPoints(
+            points,
+            self._camera_matrix,
+            self._dist_coeffs,
+            P=self._camera_matrix,
+        ).reshape(-1, 2)
+        return {
+            position: (float(point[0]), float(point[1]))
+            for position, point in zip(positions, corrected)
+        }
 
     def _log_summary(self, payload: dict[str, object]) -> None:
         """按固定间隔输出一行简要统计，避免刷屏。"""
@@ -585,8 +658,8 @@ def tray_matrix_cells(payload_cells: list[dict[str, object]], detected_tray_ids:
                 else:
                     cell.class_id = int(source['class_id'])
                     cell.confidence = float(source['confidence'])
-                    cell.u = float(source['u_rect'])
-                    cell.v = float(source['v_rect'])
+                    cell.u = float(source.get('u_undistorted', source.get('u_source', source['u_rect'])))
+                    cell.v = float(source.get('v_undistorted', source.get('v_source', source['v_rect'])))
                     cell.z = float(source.get('z_mm', 0.0))
                 cells.append(cell)
     return cells
