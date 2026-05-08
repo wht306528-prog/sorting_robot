@@ -234,18 +234,19 @@ class PingpongRealtimeNode(Node):
                 corners=candidate.corners,
             )
             undistorted_by_position = self._undistort_points_by_position(source_by_position)
-            payload_cells.extend(
-                self._payload_cells_for_tray(
-                    tray_id=candidate.tray_id,
-                    cells=detection_result.cells,
-                    depth_by_position=depth_by_position,
-                    source_by_position=source_by_position,
-                    undistorted_by_position=undistorted_by_position,
-                )
+            tray_payload_cells = self._payload_cells_for_tray(
+                tray_id=candidate.tray_id,
+                cells=detection_result.cells,
+                depth_by_position=depth_by_position,
+                source_by_position=source_by_position,
+                undistorted_by_position=undistorted_by_position,
             )
+            payload_cells.extend(tray_payload_cells)
             detected_tray_ids.add(candidate.tray_id)
             # 调试图保留整帧上的盘框，不把透视矫正图直接发布出去。
             self._draw_candidate(debug_image, candidate.tray_id, candidate.bbox, candidate.corners, detection_result.status)
+            # 同时把每个穴位的分类结果画回原始相机图，现场窗口才能直接看到 Y/W/E 是否正确。
+            self._draw_pingpong_cells_on_source(debug_image, tray_payload_cells)
 
         if not payload_cells:
             # 完全没有可发布的真实穴位时，debug 图上直接写失败原因。
@@ -485,6 +486,49 @@ class PingpongRealtimeNode(Node):
             2,
             cv2.LINE_AA,
         )
+
+    @staticmethod
+    def _draw_pingpong_cells_on_source(image, cells: list[dict[str, object]]) -> None:
+        """把矫正后分类结果画回原始相机图，方便现场直接检查球识别。"""
+        import cv2
+
+        for cell in cells:
+            u = float(cell.get('u_source', 0.0))
+            v = float(cell.get('v_source', 0.0))
+            if u <= 0.0 or v <= 0.0:
+                continue
+
+            class_name = str(cell.get('class_name', 'empty'))
+            point = (int(round(u)), int(round(v)))
+            if class_name == 'yellow_ball':
+                color = (0, 220, 255)
+                label = 'Y'
+                radius = 13
+                thickness = 3
+            elif class_name == 'white_ball':
+                color = (255, 255, 255)
+                label = 'W'
+                radius = 13
+                thickness = 3
+            else:
+                color = (105, 105, 105)
+                label = ''
+                radius = 5
+                thickness = 1
+
+            cv2.circle(image, point, radius, color, thickness, cv2.LINE_AA)
+            cv2.circle(image, point, 2, color, -1, cv2.LINE_AA)
+            if label:
+                cv2.putText(
+                    image,
+                    label,
+                    (point[0] + 9, point[1] - 9),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.58,
+                    color,
+                    2,
+                    cv2.LINE_AA,
+                )
 
     def _string_parameter(self, name: str, default: str) -> str:
         value = self.get_parameter(name).value
