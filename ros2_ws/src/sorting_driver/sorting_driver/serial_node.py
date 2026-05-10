@@ -7,7 +7,7 @@
 2. 接收 sorting_vision 发布的 TrayMatrix。
 3. 校验矩阵是否满足 150 个穴位、行列范围、类别范围等规则。
 4. 把矩阵转成鲁班猫到 F407 的文本协议帧。
-5. 将完整文本帧打印到终端。
+5. 先打印非空穴位摘要，再按需打印完整文本帧。
 
 用途：
 - 检查视觉侧输出是否能被驱动侧正常接收。
@@ -16,6 +16,7 @@
 
 运行方式：
     ros2 run sorting_driver matrix_protocol_printer
+    ros2 run sorting_driver matrix_protocol_printer --ros-args -p print_full_frame:=true
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ import rclpy
 from sorting_interfaces.msg import TrayMatrix
 
 from sorting_driver.protocol import (
+    _format_cell,
     format_tray_matrix_text_frame,
     validate_tray_matrix,
 )
@@ -39,11 +41,15 @@ class MatrixProtocolPrinter(Node):
 
         # 话题名来自 config/driver.yaml；默认值只用于没有加载配置文件的情况。
         self.declare_parameter('tray_matrix_topic', '/sorting/tray_matrix')
+        self.declare_parameter('print_full_frame', False)
+        self.declare_parameter('max_non_empty_rows', 30)
         self._topic_name = (
             self.get_parameter('tray_matrix_topic')
             .get_parameter_value()
             .string_value
         )
+        self._print_full_frame = bool(self.get_parameter('print_full_frame').value)
+        self._max_non_empty_rows = max(0, int(self.get_parameter('max_non_empty_rows').value))
 
         # 订阅视觉侧输出的三苗盘矩阵。话题名统一记录在 docs/glossary 术语对照表.md。
         self._subscription = self.create_subscription(
@@ -73,12 +79,39 @@ class MatrixProtocolPrinter(Node):
                 )
             return
 
-        # 当前阶段先打印协议帧。后续接 F407 时，这里会替换或扩展为 TCP 发送。
-        frame = format_tray_matrix_text_frame(message)
+        # 当前阶段先打印摘要，避免用户在 150 行空穴里找不到真实识别结果。
         self.get_logger().info(
             f'Received frame_id={message.frame_id} cells={len(message.cells)}'
         )
-        print(frame, flush=True)
+        print(format_matrix_summary(message, self._max_non_empty_rows), flush=True)
+        if self._print_full_frame:
+            frame = format_tray_matrix_text_frame(message)
+            print(frame, flush=True)
+
+
+def format_matrix_summary(message: TrayMatrix, max_non_empty_rows: int = 30) -> str:
+    """生成便于人看的矩阵摘要，不改变发给 F407 的完整协议帧。"""
+
+    non_empty = [cell for cell in message.cells if cell.class_id in (1, 2)]
+    white_count = sum(1 for cell in non_empty if cell.class_id == 1)
+    yellow_count = sum(1 for cell in non_empty if cell.class_id == 2)
+    empty_count = sum(1 for cell in message.cells if cell.class_id == 0)
+    lines = [
+        '========== TrayMatrix 摘要 ==========',
+        f'frame_id={message.frame_id} count={len(message.cells)}',
+        f'非空穴位: {len(non_empty)}  白球: {white_count}  黄球: {yellow_count}  空穴: {empty_count}',
+        '8列顺序: tray_id,col,row,class_id,confidence,u,v,z',
+    ]
+    if non_empty:
+        lines.append(f'前 {min(len(non_empty), max_non_empty_rows)} 条非空穴位:')
+        for cell in non_empty[:max_non_empty_rows]:
+            lines.append(_format_cell(cell))
+        if len(non_empty) > max_non_empty_rows:
+            lines.append(f'... 还有 {len(non_empty) - max_non_empty_rows} 条非空穴位未显示')
+    else:
+        lines.append('本帧没有 class_id=1/2 的白球或黄球。')
+    lines.append('====================================')
+    return '\n'.join(lines)
 
 
 def main(args: list[str] | None = None) -> None:

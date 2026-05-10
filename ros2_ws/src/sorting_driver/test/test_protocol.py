@@ -1,4 +1,23 @@
 from sorting_driver.protocol import calculate_checksum
+from sorting_driver.serial_node import format_matrix_summary
+
+
+class FakeTrayMatrix:
+    def __init__(self, frame_id, cells):
+        self.frame_id = frame_id
+        self.cells = cells
+
+
+class FakeTrayCell:
+    def __init__(self, tray_id, col, row, class_id, confidence, u, v, z):
+        self.tray_id = tray_id
+        self.col = col
+        self.row = row
+        self.class_id = class_id
+        self.confidence = confidence
+        self.u = u
+        self.v = v
+        self.z = z
 
 
 def test_checksum_uses_only_data_line_bytes_without_newlines():
@@ -20,3 +39,20 @@ def test_checksum_does_not_include_line_separators():
     with_newline = sum('\n'.join(data_lines).encode('utf-8')) % 65536
 
     assert calculate_checksum(data_lines) != with_newline
+
+
+def test_matrix_summary_lists_non_empty_cells_first():
+    message = FakeTrayMatrix(
+        frame_id=7,
+        cells=[
+            FakeTrayCell(1, 1, 1, 0, 1.0, 0.0, 0.0, 0.0),
+            FakeTrayCell(1, 2, 1, 1, 0.8, 11.0, 22.0, 333.0),
+            FakeTrayCell(1, 3, 1, 2, 0.9, 44.0, 55.0, 666.0),
+        ],
+    )
+
+    summary = format_matrix_summary(message, max_non_empty_rows=10)
+
+    assert '非空穴位: 2  白球: 1  黄球: 1  空穴: 1' in summary
+    assert '1,2,1,1,0.800,11.000,22.000,333.000' in summary
+    assert '1,3,1,2,0.900,44.000,55.000,666.000' in summary
