@@ -235,12 +235,19 @@ class PingpongRealtimeNode(Node):
                 cells=detection_result.cells,
                 corners=candidate.corners,
             )
+            debug_source_by_position = rectified_cells_to_source_points(
+                detection_result.cells,
+                candidate.corners,
+                self._edge_config,
+                use_debug_points=True,
+            )
             undistorted_by_position = self._undistort_points_by_position(source_by_position)
             tray_payload_cells = self._payload_cells_for_tray(
                 tray_id=candidate.tray_id,
                 cells=detection_result.cells,
                 depth_by_position=depth_by_position,
                 source_by_position=source_by_position,
+                debug_source_by_position=debug_source_by_position,
                 undistorted_by_position=undistorted_by_position,
             )
             payload_cells.extend(tray_payload_cells)
@@ -331,6 +338,7 @@ class PingpongRealtimeNode(Node):
         cells: list[PingpongCell],
         depth_by_position: dict[tuple[int, int], float],
         source_by_position: dict[tuple[int, int], tuple[float, float]],
+        debug_source_by_position: dict[tuple[int, int], tuple[float, float]],
         undistorted_by_position: dict[tuple[int, int], tuple[float, float]],
     ) -> list[dict[str, object]]:
         """把单盘识别结果转换成带 tray_id 的字典列表。"""
@@ -338,6 +346,10 @@ class PingpongRealtimeNode(Node):
         for cell in cells:
             # u_rect/v_rect 是矫正图坐标；u_source/v_source 是原始相机图坐标。
             source_u, source_v = source_by_position.get((cell.row, cell.col), (0.0, 0.0))
+            debug_source_u, debug_source_v = debug_source_by_position.get(
+                (cell.row, cell.col),
+                (source_u, source_v),
+            )
             # u_undistorted/v_undistorted 是去畸变后的原图坐标，发给 F407 算 Xc/Yc。
             undistorted_u, undistorted_v = undistorted_by_position.get(
                 (cell.row, cell.col),
@@ -355,6 +367,8 @@ class PingpongRealtimeNode(Node):
                     'v_rect': round(cell.v, 3),
                     'u_source': round(source_u, 3),
                     'v_source': round(source_v, 3),
+                    'debug_u_source': round(debug_source_u, 3),
+                    'debug_v_source': round(debug_source_v, 3),
                     'u_undistorted': round(undistorted_u, 3),
                     'v_undistorted': round(undistorted_v, 3),
                     'z_mm': round(depth_by_position.get((cell.row, cell.col), 0.0), 3),
@@ -495,8 +509,9 @@ class PingpongRealtimeNode(Node):
         import cv2
 
         for cell in cells:
-            u = float(cell.get('u_source', 0.0))
-            v = float(cell.get('v_source', 0.0))
+            # 调试图优先画颜色质心；没有质心时再退回穴位理论中心。
+            u = float(cell.get('debug_u_source', cell.get('u_source', 0.0)))
+            v = float(cell.get('debug_v_source', cell.get('v_source', 0.0)))
             if u <= 0.0 or v <= 0.0:
                 continue
 
@@ -599,6 +614,7 @@ def rectified_cells_to_source_points(
     cells: list[PingpongCell],
     corners: np.ndarray,
     config: TrayEdgeFitConfig,
+    use_debug_points: bool = False,
 ) -> dict[tuple[int, int], tuple[float, float]]:
     """把矫正图中的穴位中心反变换回原始 RGB 图像坐标。"""
     import cv2
@@ -615,7 +631,16 @@ def rectified_cells_to_source_points(
     )
     # target 是矫正图中的四角，corners 是原始 RGB 图中的四角。
     matrix = cv2.getPerspectiveTransform(target, corners.astype(np.float32))
-    rectified_points = np.asarray([[[float(cell.u), float(cell.v)]] for cell in cells], dtype=np.float32)
+    rectified_points = np.asarray(
+        [
+            [[
+                float(cell.debug_u if use_debug_points and cell.debug_u is not None else cell.u),
+                float(cell.debug_v if use_debug_points and cell.debug_v is not None else cell.v),
+            ]]
+            for cell in cells
+        ],
+        dtype=np.float32,
+    )
     if len(rectified_points) == 0:
         return {}
     source_points = cv2.perspectiveTransform(rectified_points, matrix).reshape(-1, 2)

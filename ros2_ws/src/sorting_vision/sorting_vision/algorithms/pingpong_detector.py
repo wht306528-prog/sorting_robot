@@ -52,6 +52,8 @@ class PingpongCell:
     ball_ratio: float
     yellow_component_ratio: float
     white_component_ratio: float
+    debug_u: float | None = None
+    debug_v: float | None = None
 
 
 @dataclass(frozen=True)
@@ -179,6 +181,13 @@ def classify_cell(
         white_component_ratio=white_component_ratio,
         config=config,
     )
+    # debug_u/debug_v 只用于调试图画点：优先贴到颜色连通域中心，不改变矩阵输出坐标。
+    debug_point = None
+    if class_name == CLASS_YELLOW:
+        debug_point = largest_component_centroid(yellow, circle, x0, y0)
+    elif class_name == CLASS_WHITE:
+        debug_point = largest_component_centroid(white, circle, x0, y0)
+
     return PingpongCell(
         row=center.row,
         col=center.col,
@@ -191,6 +200,8 @@ def classify_cell(
         ball_ratio=ball_ratio,
         yellow_component_ratio=yellow_component_ratio,
         white_component_ratio=white_component_ratio,
+        debug_u=debug_point[0] if debug_point is not None else None,
+        debug_v=debug_point[1] if debug_point is not None else None,
     )
 
 
@@ -205,6 +216,28 @@ def largest_component_ratio(mask: np.ndarray, circle: np.ndarray, valid_count: i
         return 0.0
     largest = int(stats[1:, cv2.CC_STAT_AREA].max())
     return float(largest) / float(max(1, valid_count))
+
+
+def largest_component_centroid(
+    mask: np.ndarray,
+    circle: np.ndarray,
+    x0: int,
+    y0: int,
+) -> tuple[float, float] | None:
+    """返回颜色最大连通域在矫正图坐标系下的质心。
+
+    这个点只服务 debug 图显示，避免把格子理论中心误看成真实球心。
+    """
+
+    clipped = (mask & circle).astype(np.uint8)
+    if int(np.count_nonzero(clipped)) <= 0:
+        return None
+    _count, _labels, stats, centroids = cv2.connectedComponentsWithStats(clipped, connectivity=8)
+    if len(stats) <= 1:
+        return None
+    largest_label = int(np.argmax(stats[1:, cv2.CC_STAT_AREA]) + 1)
+    cx, cy = centroids[largest_label]
+    return float(x0 + cx), float(y0 + cy)
 
 
 def classify_ratios(
@@ -262,7 +295,10 @@ def draw_pingpong_cells(
 
     output = image.copy()
     for cell in result.cells:
-        point = (int(round(cell.u)), int(round(cell.v)))
+        # 离线 debug 图也优先把点画到颜色质心，和实时 debug_image 保持一致。
+        debug_u = cell.debug_u if cell.debug_u is not None else cell.u
+        debug_v = cell.debug_v if cell.debug_v is not None else cell.v
+        point = (int(round(debug_u)), int(round(debug_v)))
         color = class_color(cell.class_name)
         cv2.circle(output, point, 9, color, 2, cv2.LINE_AA)
         cv2.circle(output, point, 3, color, -1, cv2.LINE_AA)
