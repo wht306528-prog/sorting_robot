@@ -150,7 +150,9 @@ class PingpongRealtimeNode(Node):
         self.declare_parameter('side_band_ratio', 0.075)
         self.declare_parameter('roi_radius_ratio', 0.34)
         self.declare_parameter('min_ball_ratio', 0.16)
-        self.declare_parameter('min_white_ratio', 0.30)
+        self.declare_parameter('min_white_ratio', 0.36)
+        self.declare_parameter('min_white_component_ratio', 0.30)
+        self.declare_parameter('min_yellow_component_ratio', 0.12)
         self.declare_parameter('min_color_margin', 0.035)
 
     def _handle_depth(self, message: Image) -> None:
@@ -192,7 +194,9 @@ class PingpongRealtimeNode(Node):
         return PingpongDetectorConfig(
             roi_radius_ratio=self._float_parameter('roi_radius_ratio', 0.34),
             min_ball_ratio=self._float_parameter('min_ball_ratio', 0.16),
-            min_white_ratio=self._float_parameter('min_white_ratio', 0.30),
+            min_white_ratio=self._float_parameter('min_white_ratio', 0.36),
+            min_white_component_ratio=self._float_parameter('min_white_component_ratio', 0.30),
+            min_yellow_component_ratio=self._float_parameter('min_yellow_component_ratio', 0.12),
             min_color_margin=self._float_parameter('min_color_margin', 0.035),
             hole_grid=TrayHoleGridConfig(
                 rows=self._int_parameter('rows', 10),

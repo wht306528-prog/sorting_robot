@@ -26,6 +26,9 @@ def generate_launch_description() -> LaunchDescription:
     depth_window_px = LaunchConfiguration('depth_window_px')
     expected_tray_count = LaunchConfiguration('expected_tray_count')
     process_every_n_frames = LaunchConfiguration('process_every_n_frames')
+    min_white_ratio = LaunchConfiguration('min_white_ratio')
+    min_white_component_ratio = LaunchConfiguration('min_white_component_ratio')
+    min_yellow_component_ratio = LaunchConfiguration('min_yellow_component_ratio')
     start_tcp_sender = LaunchConfiguration('start_tcp_sender')
     f407_host = LaunchConfiguration('f407_host')
     f407_port = LaunchConfiguration('f407_port')
@@ -46,6 +49,9 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument('depth_window_px', default_value='5'),
             DeclareLaunchArgument('expected_tray_count', default_value='3'),
             DeclareLaunchArgument('process_every_n_frames', default_value='3'),
+            DeclareLaunchArgument('min_white_ratio', default_value='0.36'),
+            DeclareLaunchArgument('min_white_component_ratio', default_value='0.30'),
+            DeclareLaunchArgument('min_yellow_component_ratio', default_value='0.12'),
             DeclareLaunchArgument('start_tcp_sender', default_value='true'),
             DeclareLaunchArgument('f407_host', default_value='127.0.0.1'),
             DeclareLaunchArgument('f407_port', default_value='9000'),
@@ -92,6 +98,9 @@ def generate_launch_description() -> LaunchDescription:
                         'depth_window_px': depth_window_px,
                         'expected_tray_count': expected_tray_count,
                         'process_every_n_frames': process_every_n_frames,
+                        'min_white_ratio': min_white_ratio,
+                        'min_white_component_ratio': min_white_component_ratio,
+                        'min_yellow_component_ratio': min_yellow_component_ratio,
                     }
                 ],
             ),

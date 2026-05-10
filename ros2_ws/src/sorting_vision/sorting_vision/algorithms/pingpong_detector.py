@@ -30,8 +30,8 @@ class PingpongDetectorConfig:
     cols: int = 5
     roi_radius_ratio: float = 0.34
     min_ball_ratio: float = 0.16
-    min_white_ratio: float = 0.30
-    min_white_component_ratio: float = 0.24
+    min_white_ratio: float = 0.36
+    min_white_component_ratio: float = 0.30
     min_yellow_component_ratio: float = 0.12
     min_color_margin: float = 0.035
     hole_grid: TrayHoleGridConfig = TrayHoleGridConfig()

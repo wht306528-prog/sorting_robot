@@ -18,6 +18,9 @@ USE_UNDISTORT="${USE_UNDISTORT:-true}"
 DEPTH_WINDOW_PX="${DEPTH_WINDOW_PX:-5}"
 EXPECTED_TRAY_COUNT="${EXPECTED_TRAY_COUNT:-3}"
 PROCESS_EVERY_N_FRAMES="${PROCESS_EVERY_N_FRAMES:-3}"
+MIN_WHITE_RATIO="${MIN_WHITE_RATIO:-0.36}"
+MIN_WHITE_COMPONENT_RATIO="${MIN_WHITE_COMPONENT_RATIO:-0.30}"
+MIN_YELLOW_COMPONENT_RATIO="${MIN_YELLOW_COMPONENT_RATIO:-0.12}"
 START_TCP_SENDER="${START_TCP_SENDER:-true}"
 F407_HOST="${F407_HOST:-127.0.0.1}"
 F407_PORT="${F407_PORT:-9000}"
@@ -47,6 +50,8 @@ usage() {
   REALSENSE_DEPTH_PROFILE=848x480x30
   COLOR_CAMERA_INFO_TOPIC=/camera/camera/color/camera_info
   DEPTH_IMAGE_TOPIC=/camera/camera/aligned_depth_to_color/image_raw
+  MIN_WHITE_RATIO=0.36
+  MIN_WHITE_COMPONENT_RATIO=0.30
 EOF
 }
 
@@ -116,6 +121,7 @@ echo "realsense_color_profile=$REALSENSE_COLOR_PROFILE realsense_depth_profile=$
 echo "use_depth=$USE_DEPTH depth_image_topic=$DEPTH_IMAGE_TOPIC"
 echo "use_undistort=$USE_UNDISTORT color_camera_info_topic=$COLOR_CAMERA_INFO_TOPIC"
 echo "expected_tray_count=$EXPECTED_TRAY_COUNT start_tcp_sender=$START_TCP_SENDER tcp=$F407_HOST:$F407_PORT"
+echo "min_white_ratio=$MIN_WHITE_RATIO min_white_component_ratio=$MIN_WHITE_COMPONENT_RATIO"
 
 # launch 同时启动：可选 USB 相机节点、乒乓球实时识别节点、矩阵 TCP 发送节点。
 exec ros2 launch sorting_bringup pingpong_demo.launch.py \
@@ -132,6 +138,9 @@ exec ros2 launch sorting_bringup pingpong_demo.launch.py \
   depth_window_px:="$DEPTH_WINDOW_PX" \
   expected_tray_count:="$EXPECTED_TRAY_COUNT" \
   process_every_n_frames:="$PROCESS_EVERY_N_FRAMES" \
+  min_white_ratio:="$MIN_WHITE_RATIO" \
+  min_white_component_ratio:="$MIN_WHITE_COMPONENT_RATIO" \
+  min_yellow_component_ratio:="$MIN_YELLOW_COMPONENT_RATIO" \
   start_tcp_sender:="$START_TCP_SENDER" \
   f407_host:="$F407_HOST" \
   f407_port:="$F407_PORT"
