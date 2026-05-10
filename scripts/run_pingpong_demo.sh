@@ -117,11 +117,12 @@ set -u
 # 打印最终启动参数，方便无显示器现场通过终端确认相机、深度和 F407 地址。
 echo "pingpong demo profile: $PROFILE"
 echo "start_camera=$START_CAMERA start_realsense=$START_REALSENSE video_device=$VIDEO_DEVICE image_topic=$IMAGE_TOPIC"
-echo "realsense_color_profile=$REALSENSE_COLOR_PROFILE realsense_depth_profile=$REALSENSE_DEPTH_PROFILE"
+echo "realsense_color_profile目标值=$REALSENSE_COLOR_PROFILE realsense_depth_profile目标值=$REALSENSE_DEPTH_PROFILE"
 echo "use_depth=$USE_DEPTH depth_image_topic=$DEPTH_IMAGE_TOPIC"
 echo "use_undistort=$USE_UNDISTORT color_camera_info_topic=$COLOR_CAMERA_INFO_TOPIC"
 echo "expected_tray_count=$EXPECTED_TRAY_COUNT start_tcp_sender=$START_TCP_SENDER tcp=$F407_HOST:$F407_PORT"
 echo "min_white_ratio=$MIN_WHITE_RATIO min_white_component_ratio=$MIN_WHITE_COMPONENT_RATIO"
+echo "实际 RGB/Depth 分辨率和内参会由 ROS 节点首次收到图像后打印"
 
 # launch 同时启动：可选 USB 相机节点、乒乓球实时识别节点、矩阵 TCP 发送节点。
 exec ros2 launch sorting_bringup pingpong_demo.launch.py \

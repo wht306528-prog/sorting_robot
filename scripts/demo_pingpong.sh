@@ -252,8 +252,9 @@ if [[ "$USE_UNDISTORT" == "true" ]]; then
   info "  color_camera_info_topic=$COLOR_CAMERA_INFO_TOPIC"
 fi
 if [[ "$PROFILE_TO_RUN" == "realsense" ]]; then
-  info "  realsense_color_profile=$REALSENSE_COLOR_PROFILE"
-  info "  realsense_depth_profile=$REALSENSE_DEPTH_PROFILE"
+  info "  realsense_color_profile目标值=$REALSENSE_COLOR_PROFILE"
+  info "  realsense_depth_profile目标值=$REALSENSE_DEPTH_PROFILE"
+  info "  实际 RGB/Depth 分辨率和内参会由 ROS 节点首次收到图像后打印"
 fi
 info "  f407=$F407_HOST:$F407_PORT"
 info "  check_f407=$CHECK_F407"

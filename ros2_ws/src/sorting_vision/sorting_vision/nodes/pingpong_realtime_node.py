@@ -73,6 +73,9 @@ class PingpongRealtimeNode(Node):
         self._warned_depth_waiting = False
         self._warned_depth_size = False
         self._warned_camera_info_waiting = False
+        self._logged_color_image_info = False
+        self._logged_depth_image_info = False
+        self._logged_camera_info = False
 
         # debug_image 给人看，cells_json 给终端/日志看，TrayMatrix 给 F407/TCP 链路用。
         self._debug_publisher = self.create_publisher(Image, self._debug_topic, 10)
@@ -158,11 +161,41 @@ class PingpongRealtimeNode(Node):
     def _handle_depth(self, message: Image) -> None:
         """保存最新一帧对齐深度图。"""
         self._latest_depth = message
+        if not self._logged_depth_image_info:
+            self.get_logger().info(
+                '收到真实 Depth 图像：width={width} height={height} encoding={encoding} step={step}'.format(
+                    width=message.width,
+                    height=message.height,
+                    encoding=message.encoding,
+                    step=message.step,
+                )
+            )
+            self._logged_depth_image_info = True
 
     def _handle_color_camera_info(self, message: CameraInfo) -> None:
         """保存 RGB 相机内参，用于对输出给 F407 的 u/v 去畸变。"""
         self._camera_matrix = np.asarray(message.k, dtype=np.float64).reshape(3, 3)
         self._dist_coeffs = np.asarray(message.d, dtype=np.float64).reshape(-1, 1)
+        if not self._logged_camera_info:
+            fx = float(self._camera_matrix[0, 0])
+            fy = float(self._camera_matrix[1, 1])
+            cx = float(self._camera_matrix[0, 2])
+            cy = float(self._camera_matrix[1, 2])
+            dist_text = ', '.join(f'{float(value):.6g}' for value in self._dist_coeffs.reshape(-1))
+            self.get_logger().info(
+                '收到 RGB CameraInfo：width={width} height={height} model={model} '
+                'fx={fx:.3f} fy={fy:.3f} cx={cx:.3f} cy={cy:.3f} D=[{dist}]'.format(
+                    width=message.width,
+                    height=message.height,
+                    model=message.distortion_model,
+                    fx=fx,
+                    fy=fy,
+                    cx=cx,
+                    cy=cy,
+                    dist=dist_text,
+                )
+            )
+            self._logged_camera_info = True
 
     def _geometry_config_from_parameters(self) -> TrayGeometryConfig:
         """从 ROS 参数生成整帧多盘几何检测配置。"""
@@ -207,6 +240,16 @@ class PingpongRealtimeNode(Node):
     def _handle_image(self, message: Image) -> None:
         """处理一帧 RGB 图像：找盘、矫正、识别、发布调试图和矩阵。"""
         self._frame_index += 1
+        if not self._logged_color_image_info:
+            self.get_logger().info(
+                '收到真实 RGB 图像：width={width} height={height} encoding={encoding} step={step}'.format(
+                    width=message.width,
+                    height=message.height,
+                    encoding=message.encoding,
+                    step=message.step,
+                )
+            )
+            self._logged_color_image_info = True
         # 降频处理，避免低算力板子上每帧都跑视觉造成延迟堆积。
         if self._frame_index % self._process_every_n != 0:
             return
