@@ -69,6 +69,59 @@ print_quick_commands() {
 EOF
 }
 
+print_startup_summary() {
+  local camera_line
+  case "$PROFILE_TO_RUN" in
+    topic)
+      camera_line="订阅已有图像 topic: $TOPIC_TO_RUN"
+      ;;
+    realsense)
+      camera_line="D435iF / RealSense"
+      ;;
+    usb0)
+      camera_line="普通 USB 相机: /dev/video0"
+      ;;
+    usb1)
+      camera_line="普通 USB 相机: /dev/video1"
+      ;;
+    *)
+      camera_line="$PROFILE_TO_RUN"
+      ;;
+  esac
+
+  cat <<EOF
+
+========== 乒乓球演示启动配置 ==========
+相机:
+  profile: $PROFILE_TO_RUN
+  设备/来源: $camera_line
+  RGB topic: $IMAGE_TOPIC
+  RGB CameraInfo topic: $COLOR_CAMERA_INFO_TOPIC
+  RealSense RGB 目标值: $REALSENSE_COLOR_PROFILE
+  RealSense Depth 目标值: $REALSENSE_DEPTH_PROFILE
+  提示: 目标值不一定等于真实运行值；真实值会在 ROS 节点首次收到图像后打印。
+
+深度与去畸变:
+  use_depth: $USE_DEPTH_TO_RUN
+  depth topic: $DEPTH_IMAGE_TOPIC
+  depth_window_px: $DEPTH_WINDOW_PX
+  use_undistort: $USE_UNDISTORT
+
+识别:
+  expected_tray_count: $EXPECTED_TRAY_COUNT
+  process_every_n_frames: $PROCESS_EVERY_N_FRAMES
+  min_white_ratio: $MIN_WHITE_RATIO
+  min_white_component_ratio: $MIN_WHITE_COMPONENT_RATIO
+
+F407/TCP:
+  host: $F407_HOST
+  port: $F407_PORT
+  check_f407: $CHECK_F407
+========================================
+
+EOF
+}
+
 info() {
   echo "[INFO] $*"
 }
@@ -225,39 +278,7 @@ if [[ "$USE_DEPTH_TO_RUN" == "true" && "$PROFILE_TO_RUN" != "realsense" ]]; then
   fi
 fi
 
-info "启动配置:"
-info "  profile=$PROFILE_TO_RUN"
-if [[ "$PROFILE_TO_RUN" == "topic" ]]; then
-  info "  image_topic=$TOPIC_TO_RUN"
-elif [[ "$PROFILE_TO_RUN" == "realsense" ]]; then
-  info "  camera=realsense/D435iF"
-  info "  image_topic=$IMAGE_TOPIC"
-elif [[ "$PROFILE_TO_RUN" == "usb0" ]]; then
-  info "  usb_device=/dev/video0"
-elif [[ "$PROFILE_TO_RUN" == "usb1" ]]; then
-  info "  usb_device=/dev/video1"
-else
-  info "  usb_device=$PROFILE_TO_RUN"
-fi
-info "  expected_tray_count=$EXPECTED_TRAY_COUNT"
-info "  process_every_n_frames=$PROCESS_EVERY_N_FRAMES"
-info "  min_white_ratio=$MIN_WHITE_RATIO"
-info "  min_white_component_ratio=$MIN_WHITE_COMPONENT_RATIO"
-info "  use_depth=$USE_DEPTH_TO_RUN"
-if [[ "$USE_DEPTH_TO_RUN" == "true" ]]; then
-  info "  depth_image_topic=$DEPTH_IMAGE_TOPIC"
-fi
-info "  use_undistort=$USE_UNDISTORT"
-if [[ "$USE_UNDISTORT" == "true" ]]; then
-  info "  color_camera_info_topic=$COLOR_CAMERA_INFO_TOPIC"
-fi
-if [[ "$PROFILE_TO_RUN" == "realsense" ]]; then
-  info "  realsense_color_profile目标值=$REALSENSE_COLOR_PROFILE"
-  info "  realsense_depth_profile目标值=$REALSENSE_DEPTH_PROFILE"
-  info "  实际 RGB/Depth 分辨率和内参会由 ROS 节点首次收到图像后打印"
-fi
-info "  f407=$F407_HOST:$F407_PORT"
-info "  check_f407=$CHECK_F407"
+print_startup_summary
 
 print_quick_commands
 

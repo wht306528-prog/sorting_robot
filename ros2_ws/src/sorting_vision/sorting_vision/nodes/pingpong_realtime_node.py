@@ -76,6 +76,10 @@ class PingpongRealtimeNode(Node):
         self._logged_color_image_info = False
         self._logged_depth_image_info = False
         self._logged_camera_info = False
+        self._logged_camera_runtime_summary = False
+        self._color_image_runtime_info: dict[str, object] | None = None
+        self._depth_image_runtime_info: dict[str, object] | None = None
+        self._camera_info_runtime_info: dict[str, object] | None = None
 
         # debug_image 给人看，cells_json 给终端/日志看，TrayMatrix 给 F407/TCP 链路用。
         self._debug_publisher = self.create_publisher(Image, self._debug_topic, 10)
@@ -162,15 +166,14 @@ class PingpongRealtimeNode(Node):
         """保存最新一帧对齐深度图。"""
         self._latest_depth = message
         if not self._logged_depth_image_info:
-            self.get_logger().info(
-                '收到真实 Depth 图像：width={width} height={height} encoding={encoding} step={step}'.format(
-                    width=message.width,
-                    height=message.height,
-                    encoding=message.encoding,
-                    step=message.step,
-                )
-            )
+            self._depth_image_runtime_info = {
+                'width': message.width,
+                'height': message.height,
+                'encoding': message.encoding,
+                'step': message.step,
+            }
             self._logged_depth_image_info = True
+            self._log_camera_runtime_summary_if_ready()
 
     def _handle_color_camera_info(self, message: CameraInfo) -> None:
         """保存 RGB 相机内参，用于对输出给 F407 的 u/v 去畸变。"""
@@ -182,20 +185,18 @@ class PingpongRealtimeNode(Node):
             cx = float(self._camera_matrix[0, 2])
             cy = float(self._camera_matrix[1, 2])
             dist_text = ', '.join(f'{float(value):.6g}' for value in self._dist_coeffs.reshape(-1))
-            self.get_logger().info(
-                '收到 RGB CameraInfo：width={width} height={height} model={model} '
-                'fx={fx:.3f} fy={fy:.3f} cx={cx:.3f} cy={cy:.3f} D=[{dist}]'.format(
-                    width=message.width,
-                    height=message.height,
-                    model=message.distortion_model,
-                    fx=fx,
-                    fy=fy,
-                    cx=cx,
-                    cy=cy,
-                    dist=dist_text,
-                )
-            )
+            self._camera_info_runtime_info = {
+                'width': message.width,
+                'height': message.height,
+                'model': message.distortion_model,
+                'fx': fx,
+                'fy': fy,
+                'cx': cx,
+                'cy': cy,
+                'dist': dist_text,
+            }
             self._logged_camera_info = True
+            self._log_camera_runtime_summary_if_ready()
 
     def _geometry_config_from_parameters(self) -> TrayGeometryConfig:
         """从 ROS 参数生成整帧多盘几何检测配置。"""
@@ -241,15 +242,14 @@ class PingpongRealtimeNode(Node):
         """处理一帧 RGB 图像：找盘、矫正、识别、发布调试图和矩阵。"""
         self._frame_index += 1
         if not self._logged_color_image_info:
-            self.get_logger().info(
-                '收到真实 RGB 图像：width={width} height={height} encoding={encoding} step={step}'.format(
-                    width=message.width,
-                    height=message.height,
-                    encoding=message.encoding,
-                    step=message.step,
-                )
-            )
+            self._color_image_runtime_info = {
+                'width': message.width,
+                'height': message.height,
+                'encoding': message.encoding,
+                'step': message.step,
+            }
             self._logged_color_image_info = True
+            self._log_camera_runtime_summary_if_ready()
         # 降频处理，避免低算力板子上每帧都跑视觉造成延迟堆积。
         if self._frame_index % self._process_every_n != 0:
             return
@@ -320,6 +320,58 @@ class PingpongRealtimeNode(Node):
         self._publish_cells(payload)
         self._publish_tray_matrix(message, payload)
         self._log_summary(payload)
+
+    def _log_camera_runtime_summary_if_ready(self) -> None:
+        """首次收齐相机真实信息后，按菜单格式打印一次，方便现场抄参数。"""
+        if self._logged_camera_runtime_summary:
+            return
+        if self._color_image_runtime_info is None:
+            return
+        if self._use_depth and self._depth_image_runtime_info is None:
+            return
+        if self._use_undistort and self._camera_info_runtime_info is None:
+            return
+
+        color = self._color_image_runtime_info
+        lines = [
+            '',
+            '========== 相机真实运行信息 ==========',
+            'RGB 图像:',
+            '  分辨率: {width}x{height}'.format(**color),
+            '  编码: {encoding}'.format(**color),
+            '  step: {step}'.format(**color),
+        ]
+        if self._use_depth and self._depth_image_runtime_info is not None:
+            depth = self._depth_image_runtime_info
+            lines.extend(
+                [
+                    'Depth 图像:',
+                    '  分辨率: {width}x{height}'.format(**depth),
+                    '  编码: {encoding}'.format(**depth),
+                    '  step: {step}'.format(**depth),
+                ]
+            )
+        else:
+            lines.extend(['Depth 图像:', '  已关闭，TrayCell.z 保持 0'])
+
+        if self._use_undistort and self._camera_info_runtime_info is not None:
+            camera = self._camera_info_runtime_info
+            lines.extend(
+                [
+                    'RGB 相机内参 CameraInfo:',
+                    '  分辨率: {width}x{height}'.format(**camera),
+                    '  畸变模型: {model}'.format(**camera),
+                    '  fx={fx:.3f}  fy={fy:.3f}'.format(**camera),
+                    '  cx={cx:.3f}  cy={cy:.3f}'.format(**camera),
+                    '  K=[[{fx:.3f}, 0, {cx:.3f}], [0, {fy:.3f}, {cy:.3f}], [0, 0, 1]]'.format(**camera),
+                    '  D=[{dist}]'.format(**camera),
+                ]
+            )
+        else:
+            lines.extend(['RGB 相机内参 CameraInfo:', '  已关闭 u/v 去畸变，未订阅 CameraInfo'])
+        lines.append('======================================')
+        self.get_logger().info('\n'.join(lines))
+        self._logged_camera_runtime_summary = True
 
     def _publish_debug_image(self, image, source_message: Image) -> None:
         """发布带有盘位置和识别状态的调试图。"""
