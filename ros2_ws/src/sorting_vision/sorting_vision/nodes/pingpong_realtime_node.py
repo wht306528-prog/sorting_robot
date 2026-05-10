@@ -503,24 +503,20 @@ class PingpongRealtimeNode(Node):
             if class_name == 'yellow_ball':
                 color = (0, 220, 255)
                 label = 'Y'
-                radius = 13
-                thickness = 3
             elif class_name == 'white_ball':
                 color = (255, 255, 255)
                 label = 'W'
-                radius = 13
-                thickness = 3
             else:
                 # 空穴数量多，默认不画，避免 debug 图遮住真实球和苗盘结构。
                 continue
 
-            cv2.circle(image, point, radius, color, thickness, cv2.LINE_AA)
-            cv2.circle(image, point, 2, color, -1, cv2.LINE_AA)
+            # 只画中心点和类别字母，避免大圆圈遮住球和穴位结构。
+            cv2.circle(image, point, 4, color, -1, cv2.LINE_AA)
             if label:
                 cv2.putText(
                     image,
                     label,
-                    (point[0] + 9, point[1] - 9),
+                    (point[0] + 6, point[1] - 6),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.58,
                     color,
