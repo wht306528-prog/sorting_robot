@@ -134,6 +134,7 @@ class PingpongRealtimeNode(Node):
         self.declare_parameter('log_every_sec', 2.0)
         self.declare_parameter('rows', 10)
         self.declare_parameter('cols', 5)
+        self.declare_parameter('geometry_method', 'large_dark_rect')
         self.declare_parameter('geometry_dark_threshold', 85)
         self.declare_parameter('geometry_projection_active_ratio', 0.10)
         self.declare_parameter('geometry_projection_smooth_px', 19)
@@ -165,6 +166,7 @@ class PingpongRealtimeNode(Node):
         """从 ROS 参数生成整帧多盘几何检测配置。"""
         return TrayGeometryConfig(
             expected_tray_count=self._expected_tray_count,
+            method=self._string_parameter('geometry_method', 'large_dark_rect'),
             dark_threshold=self._int_parameter('geometry_dark_threshold', 85),
             projection_active_ratio=self._float_parameter('geometry_projection_active_ratio', 0.10),
             projection_smooth_px=self._int_parameter('geometry_projection_smooth_px', 19),

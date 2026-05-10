@@ -27,6 +27,7 @@ class TrayGeometryConfig:
 
     expected_tray_count: int = 3
     dark_threshold: int = 85
+    method: str = 'large_dark_rect'
     projection_active_ratio: float = 0.10
     projection_smooth_px: int = 19
     min_width_ratio: float = 0.08
@@ -39,6 +40,13 @@ class TrayGeometryConfig:
     hough_min_line_length_ratio: float = 0.35
     hough_max_line_gap_px: int = 18
     split_connected_trays: bool = False
+    large_dark_min_area_ratio: float = 0.035
+    large_dark_min_width_ratio: float = 0.16
+    large_dark_min_height_ratio: float = 0.30
+    large_dark_min_extent: float = 0.35
+    large_dark_max_extent: float = 0.96
+    large_dark_min_edge_density: float = 0.08
+    large_dark_min_bright_components: int = 18
 
 
 @dataclass(frozen=True)
@@ -86,7 +94,10 @@ def detect_tray_geometry(
             message='expected_tray_count must be positive',
             candidates=[],
         )
-    candidates = locate_tray_candidates(image, config)
+    if config.method == 'large_dark_rect':
+        candidates = locate_large_dark_rect_candidates(image, config)
+    else:
+        candidates = locate_tray_candidates(image, config)
     fitted_count = sum(1 for candidate in candidates if candidate.corners is not None)
     if not candidates:
         return TrayGeometryResult(
@@ -174,6 +185,80 @@ def locate_tray_candidates(
     ]
 
 
+def locate_large_dark_rect_candidates(
+    image: np.ndarray,
+    config: TrayGeometryConfig,
+) -> list[TrayGeometryCandidate]:
+    """按“大面积黑色矩形主体”寻找苗盘候选。
+
+    这个函数用于离线实验和后续可选后端。它不依赖横向投影，而是直接找
+    大面积暗色连通域，再按面积、宽高和填充率过滤背景干扰。
+    """
+
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    mask = build_large_dark_rect_mask(gray, config)
+    contours, _hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    image_height, image_width = image.shape[:2]
+    min_area = image_height * image_width * config.large_dark_min_area_ratio
+    min_width = image_width * config.large_dark_min_width_ratio
+    min_height = image_height * config.large_dark_min_height_ratio
+
+    candidates: list[TrayGeometryCandidate] = []
+    for contour in contours:
+        area = float(cv2.contourArea(contour))
+        if area < min_area:
+            continue
+        rect = cv2.minAreaRect(contour)
+        rect_width, rect_height = rect[1]
+        if rect_width <= 1.0 or rect_height <= 1.0:
+            continue
+        box_width = max(rect_width, rect_height)
+        box_height = min(rect_width, rect_height)
+        if box_width < min_width or box_height < min_height:
+            continue
+        rect_area = float(rect_width * rect_height)
+        extent = area / max(rect_area, 1.0)
+        if extent < config.large_dark_min_extent or extent > config.large_dark_max_extent:
+            continue
+        x, y, width, height = cv2.boundingRect(contour)
+        if not has_tray_like_internal_structure(
+            image[y:y + height, x:x + width],
+            config,
+        ):
+            continue
+
+        box = cv2.boxPoints(rect).astype(np.float32)
+        corners = order_points_clockwise(box)
+        center = rect[0]
+        candidates.append(
+            TrayGeometryCandidate(
+                tray_id=0,
+                status='large_dark_rect',
+                message=f'large dark rect area={area:.1f} extent={extent:.2f}',
+                bbox=(int(x), int(y), int(width), int(height)),
+                center=(float(center[0]), float(center[1])),
+                area=area,
+                corners=corners,
+            )
+        )
+
+    candidates = dedupe_candidates(candidates)
+    candidates.sort(key=lambda item: item.center[0])
+    candidates = candidates[:config.expected_tray_count]
+    return [
+        TrayGeometryCandidate(
+            tray_id=index,
+            status=candidate.status,
+            message=candidate.message,
+            bbox=candidate.bbox,
+            center=candidate.center,
+            area=candidate.area,
+            corners=candidate.corners,
+        )
+        for index, candidate in enumerate(candidates, start=1)
+    ]
+
+
 def build_dark_body_mask(gray: np.ndarray, config: TrayGeometryConfig) -> np.ndarray:
     """生成苗盘暗色主体 mask。"""
 
@@ -186,6 +271,63 @@ def build_dark_body_mask(gray: np.ndarray, config: TrayGeometryConfig) -> np.nda
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8), iterations=1)
     return mask
+
+
+def build_large_dark_rect_mask(gray: np.ndarray, config: TrayGeometryConfig) -> np.ndarray:
+    """生成大黑色主体候选 mask。"""
+
+    threshold = min(config.dark_threshold, 50)
+    mask = (gray < threshold).astype(np.uint8) * 255
+    kernel_size = max(3, min(config.morphology_kernel_px, 5))
+    if kernel_size % 2 == 0:
+        kernel_size += 1
+    close_kernel = np.ones((kernel_size, kernel_size), np.uint8)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, close_kernel, iterations=3)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8), iterations=1)
+    return mask
+
+
+def has_tray_like_internal_structure(crop: np.ndarray, config: TrayGeometryConfig) -> bool:
+    """检查候选内部是否像苗盘：边缘多、亮色小组件多。"""
+
+    if crop.size == 0 or crop.ndim != 3:
+        return False
+    height, width = crop.shape[:2]
+    if height <= 0 or width <= 0:
+        return False
+
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(cv2.GaussianBlur(gray, (3, 3), 0), 45, 130)
+    edge_density = float(np.count_nonzero(edges)) / float(max(1, height * width))
+    if edge_density < config.large_dark_min_edge_density:
+        return False
+
+    hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+    sat = hsv[:, :, 1]
+    val = hsv[:, :, 2]
+    # 苗盘穴位里常见灰色孔底、白球、黄球等小亮块；普通黑椅子/阴影缺少这种密集结构。
+    bright = ((val > 105) & (sat < 150)).astype(np.uint8) * 255
+    contours, _hierarchy = cv2.findContours(bright, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    component_count = 0
+    max_component_area = max(80.0, height * width * 0.08)
+    for contour in contours:
+        area = float(cv2.contourArea(contour))
+        if 12.0 <= area <= max_component_area:
+            component_count += 1
+    return component_count >= config.large_dark_min_bright_components
+
+
+def order_points_clockwise(points: np.ndarray) -> np.ndarray:
+    """把四点排序为左上、右上、右下、左下。"""
+
+    points = points.astype(np.float32)
+    sums = points[:, 0] + points[:, 1]
+    diffs = points[:, 0] - points[:, 1]
+    top_left = points[int(np.argmin(sums))]
+    bottom_right = points[int(np.argmax(sums))]
+    top_right = points[int(np.argmax(diffs))]
+    bottom_left = points[int(np.argmin(diffs))]
+    return np.asarray([top_left, top_right, bottom_right, bottom_left], dtype=np.float32)
 
 
 def find_active_x_ranges(mask: np.ndarray, config: TrayGeometryConfig) -> list[tuple[int, int]]:
