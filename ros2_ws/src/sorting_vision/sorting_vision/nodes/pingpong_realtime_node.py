@@ -58,7 +58,6 @@ class PingpongRealtimeNode(Node):
         self._depth_window_px = max(1, self._int_parameter('depth_window_px', 5))
         self._expected_tray_count = max(1, min(3, self._int_parameter('expected_tray_count', 3)))
         self._process_every_n = max(1, self._int_parameter('process_every_n_frames', 3))
-        self._class_stable_frames = max(1, self._int_parameter('class_stable_frames', 2))
         self._log_every_sec = max(0.5, self._float_parameter('log_every_sec', 2.0))
         self._frame_index = 0
         self._last_log_time = 0.0
@@ -74,7 +73,6 @@ class PingpongRealtimeNode(Node):
         self._warned_depth_waiting = False
         self._warned_depth_size = False
         self._warned_camera_info_waiting = False
-        self._class_states: dict[tuple[int, int, int], dict[str, object]] = {}
 
         # debug_image 给人看，cells_json 给终端/日志看，TrayMatrix 给 F407/TCP 链路用。
         self._debug_publisher = self.create_publisher(Image, self._debug_topic, 10)
@@ -119,7 +117,6 @@ class PingpongRealtimeNode(Node):
         self.get_logger().info(f'正在发布标准 TrayMatrix：{self._tray_matrix_topic}')
         self.get_logger().info(f'当前按整帧检测最多 {self._expected_tray_count} 个苗盘，左到右写入 tray_id')
         self.get_logger().info(f'每 {self._process_every_n} 帧处理一次')
-        self.get_logger().info(f'类别切换需要连续 {self._class_stable_frames} 帧确认')
 
     def _declare_parameters(self) -> None:
         # ROS 参数分三类：输入输出 topic、实时性能开关、视觉阈值。
@@ -134,7 +131,6 @@ class PingpongRealtimeNode(Node):
         self.declare_parameter('tray_matrix_topic', '/sorting/tray_matrix')
         self.declare_parameter('expected_tray_count', 3)
         self.declare_parameter('process_every_n_frames', 3)
-        self.declare_parameter('class_stable_frames', 2)
         self.declare_parameter('log_every_sec', 2.0)
         self.declare_parameter('rows', 10)
         self.declare_parameter('cols', 5)
@@ -250,8 +246,7 @@ class PingpongRealtimeNode(Node):
             # 调试图保留整帧上的盘框，不把透视矫正图直接发布出去。
             self._draw_candidate(debug_image, candidate.tray_id, candidate.bbox, candidate.corners, detection_result.status)
 
-        payload_cells = self._stabilize_payload_cells(payload_cells)
-        # 同时把稳定后的分类结果画回原始相机图，现场窗口和发给 F407 的矩阵保持一致。
+        # 同时把分类结果画回原始相机图，现场窗口和发给 F407 的矩阵保持一致。
         self._draw_pingpong_cells_on_source(debug_image, payload_cells)
         if not payload_cells:
             # 完全没有可发布的真实穴位时，debug 图上直接写失败原因。
@@ -364,64 +359,6 @@ class PingpongRealtimeNode(Node):
                 }
             )
         return output
-
-    def _stabilize_payload_cells(self, cells: list[dict[str, object]]) -> list[dict[str, object]]:
-        """对每个穴位做短时间稳定，减少白球/黄球/空穴在相邻帧之间跳变。"""
-        if self._class_stable_frames <= 1:
-            return cells
-
-        stabilized: list[dict[str, object]] = []
-        visible_keys: set[tuple[int, int, int]] = set()
-        for cell in cells:
-            key = (int(cell['tray_id']), int(cell['row']), int(cell['col']))
-            visible_keys.add(key)
-            observed = str(cell['class_name'])
-            state = self._class_states.get(key)
-            if state is None:
-                self._class_states[key] = {
-                    'stable': observed,
-                    'pending': observed,
-                    'count': 1,
-                }
-                stabilized.append(cell)
-                continue
-
-            stable = str(state['stable'])
-            pending = str(state['pending'])
-            count = int(state['count'])
-            if observed == stable:
-                state['pending'] = observed
-                state['count'] = 1
-                stabilized.append(cell)
-                continue
-
-            if observed == pending:
-                count += 1
-            else:
-                pending = observed
-                count = 1
-            if count >= self._class_stable_frames:
-                stable = observed
-                pending = observed
-                count = 1
-
-            state['stable'] = stable
-            state['pending'] = pending
-            state['count'] = count
-
-            # 还没连续确认的新类别不立刻输出，避免矩阵因为单帧误判抖动。
-            if stable != observed:
-                cell = dict(cell)
-                cell['class_name'] = stable
-                cell['class_id'] = CLASS_IDS.get(stable, -1)
-                cell['confidence'] = min(float(cell.get('confidence', 0.0)), 0.7)
-            stabilized.append(cell)
-
-        # 没出现在当前画面的盘/格子不保留状态，避免下一次摆放位置变化时沿用旧结果。
-        for key in list(self._class_states):
-            if key not in visible_keys:
-                del self._class_states[key]
-        return stabilized
 
     def _sample_cell_depths(
         self,
