@@ -18,8 +18,14 @@ USE_UNDISTORT="${USE_UNDISTORT:-true}"
 DEPTH_WINDOW_PX="${DEPTH_WINDOW_PX:-5}"
 EXPECTED_TRAY_COUNT="${EXPECTED_TRAY_COUNT:-3}"
 PROCESS_EVERY_N_FRAMES="${PROCESS_EVERY_N_FRAMES:-3}"
+SPLIT_WIDE_LARGE_DARK_RECTS="${SPLIT_WIDE_LARGE_DARK_RECTS:-true}"
+LARGE_DARK_MAX_SINGLE_WIDTH_RATIO="${LARGE_DARK_MAX_SINGLE_WIDTH_RATIO:-0.36}"
+RELAX_SPLIT_STRUCTURE="${RELAX_SPLIT_STRUCTURE:-true}"
 MIN_WHITE_RATIO="${MIN_WHITE_RATIO:-0.36}"
 MIN_WHITE_COMPONENT_RATIO="${MIN_WHITE_COMPONENT_RATIO:-0.30}"
+MIN_WHITE_SHAPE_COMPONENT_RATIO="${MIN_WHITE_SHAPE_COMPONENT_RATIO:-0.18}"
+MIN_WHITE_CIRCULARITY="${MIN_WHITE_CIRCULARITY:-0.35}"
+MAX_WHITE_CENTER_OFFSET_RATIO="${MAX_WHITE_CENTER_OFFSET_RATIO:-0.55}"
 MIN_YELLOW_COMPONENT_RATIO="${MIN_YELLOW_COMPONENT_RATIO:-0.12}"
 START_TCP_SENDER="${START_TCP_SENDER:-true}"
 F407_HOST="${F407_HOST:-127.0.0.1}"
@@ -42,6 +48,9 @@ usage() {
 常用覆盖:
   EXPECTED_TRAY_COUNT=1|2|3
   PROCESS_EVERY_N_FRAMES=3
+  SPLIT_WIDE_LARGE_DARK_RECTS=true|false
+  LARGE_DARK_MAX_SINGLE_WIDTH_RATIO=0.36
+  RELAX_SPLIT_STRUCTURE=true|false
   F407_HOST=127.0.0.1
   F407_PORT=9000
   USE_DEPTH=false|true
@@ -52,6 +61,9 @@ usage() {
   DEPTH_IMAGE_TOPIC=/camera/camera/aligned_depth_to_color/image_raw
   MIN_WHITE_RATIO=0.36
   MIN_WHITE_COMPONENT_RATIO=0.30
+  MIN_WHITE_SHAPE_COMPONENT_RATIO=0.18
+  MIN_WHITE_CIRCULARITY=0.35
+  MAX_WHITE_CENTER_OFFSET_RATIO=0.55
 EOF
 }
 
@@ -121,7 +133,9 @@ echo "realsense_color_profile目标值=$REALSENSE_COLOR_PROFILE realsense_depth_
 echo "use_depth=$USE_DEPTH depth_image_topic=$DEPTH_IMAGE_TOPIC"
 echo "use_undistort=$USE_UNDISTORT color_camera_info_topic=$COLOR_CAMERA_INFO_TOPIC"
 echo "expected_tray_count=$EXPECTED_TRAY_COUNT start_tcp_sender=$START_TCP_SENDER tcp=$F407_HOST:$F407_PORT"
+echo "split_wide_large_dark_rects=$SPLIT_WIDE_LARGE_DARK_RECTS large_dark_max_single_width_ratio=$LARGE_DARK_MAX_SINGLE_WIDTH_RATIO relax_split_structure=$RELAX_SPLIT_STRUCTURE"
 echo "min_white_ratio=$MIN_WHITE_RATIO min_white_component_ratio=$MIN_WHITE_COMPONENT_RATIO"
+echo "min_white_shape_component_ratio=$MIN_WHITE_SHAPE_COMPONENT_RATIO min_white_circularity=$MIN_WHITE_CIRCULARITY max_white_center_offset_ratio=$MAX_WHITE_CENTER_OFFSET_RATIO"
 echo "实际 RGB/Depth 分辨率和内参会由 ROS 节点首次收到图像后打印"
 
 # launch 同时启动：可选 USB 相机节点、乒乓球实时识别节点、矩阵 TCP 发送节点。
@@ -139,8 +153,14 @@ exec ros2 launch sorting_bringup pingpong_demo.launch.py \
   depth_window_px:="$DEPTH_WINDOW_PX" \
   expected_tray_count:="$EXPECTED_TRAY_COUNT" \
   process_every_n_frames:="$PROCESS_EVERY_N_FRAMES" \
+  split_wide_large_dark_rects:="$SPLIT_WIDE_LARGE_DARK_RECTS" \
+  large_dark_max_single_width_ratio:="$LARGE_DARK_MAX_SINGLE_WIDTH_RATIO" \
+  relax_split_structure:="$RELAX_SPLIT_STRUCTURE" \
   min_white_ratio:="$MIN_WHITE_RATIO" \
   min_white_component_ratio:="$MIN_WHITE_COMPONENT_RATIO" \
+  min_white_shape_component_ratio:="$MIN_WHITE_SHAPE_COMPONENT_RATIO" \
+  min_white_circularity:="$MIN_WHITE_CIRCULARITY" \
+  max_white_center_offset_ratio:="$MAX_WHITE_CENTER_OFFSET_RATIO" \
   min_yellow_component_ratio:="$MIN_YELLOW_COMPONENT_RATIO" \
   start_tcp_sender:="$START_TCP_SENDER" \
   f407_host:="$F407_HOST" \

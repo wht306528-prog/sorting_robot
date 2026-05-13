@@ -26,8 +26,14 @@ def generate_launch_description() -> LaunchDescription:
     depth_window_px = LaunchConfiguration('depth_window_px')
     expected_tray_count = LaunchConfiguration('expected_tray_count')
     process_every_n_frames = LaunchConfiguration('process_every_n_frames')
+    split_wide_large_dark_rects = LaunchConfiguration('split_wide_large_dark_rects')
+    large_dark_max_single_width_ratio = LaunchConfiguration('large_dark_max_single_width_ratio')
+    relax_split_structure = LaunchConfiguration('relax_split_structure')
     min_white_ratio = LaunchConfiguration('min_white_ratio')
     min_white_component_ratio = LaunchConfiguration('min_white_component_ratio')
+    min_white_shape_component_ratio = LaunchConfiguration('min_white_shape_component_ratio')
+    min_white_circularity = LaunchConfiguration('min_white_circularity')
+    max_white_center_offset_ratio = LaunchConfiguration('max_white_center_offset_ratio')
     min_yellow_component_ratio = LaunchConfiguration('min_yellow_component_ratio')
     start_tcp_sender = LaunchConfiguration('start_tcp_sender')
     f407_host = LaunchConfiguration('f407_host')
@@ -49,8 +55,14 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument('depth_window_px', default_value='5'),
             DeclareLaunchArgument('expected_tray_count', default_value='3'),
             DeclareLaunchArgument('process_every_n_frames', default_value='3'),
+            DeclareLaunchArgument('split_wide_large_dark_rects', default_value='true'),
+            DeclareLaunchArgument('large_dark_max_single_width_ratio', default_value='0.36'),
+            DeclareLaunchArgument('relax_split_structure', default_value='true'),
             DeclareLaunchArgument('min_white_ratio', default_value='0.36'),
             DeclareLaunchArgument('min_white_component_ratio', default_value='0.30'),
+            DeclareLaunchArgument('min_white_shape_component_ratio', default_value='0.18'),
+            DeclareLaunchArgument('min_white_circularity', default_value='0.35'),
+            DeclareLaunchArgument('max_white_center_offset_ratio', default_value='0.55'),
             DeclareLaunchArgument('min_yellow_component_ratio', default_value='0.12'),
             DeclareLaunchArgument('start_tcp_sender', default_value='true'),
             DeclareLaunchArgument('f407_host', default_value='127.0.0.1'),
@@ -98,8 +110,14 @@ def generate_launch_description() -> LaunchDescription:
                         'depth_window_px': depth_window_px,
                         'expected_tray_count': expected_tray_count,
                         'process_every_n_frames': process_every_n_frames,
+                        'split_wide_large_dark_rects': split_wide_large_dark_rects,
+                        'large_dark_max_single_width_ratio': large_dark_max_single_width_ratio,
+                        'relax_split_structure': relax_split_structure,
                         'min_white_ratio': min_white_ratio,
                         'min_white_component_ratio': min_white_component_ratio,
+                        'min_white_shape_component_ratio': min_white_shape_component_ratio,
+                        'min_white_circularity': min_white_circularity,
+                        'max_white_center_offset_ratio': max_white_center_offset_ratio,
                         'min_yellow_component_ratio': min_yellow_component_ratio,
                     }
                 ],

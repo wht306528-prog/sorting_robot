@@ -151,6 +151,9 @@ class PingpongRealtimeNode(Node):
         self.declare_parameter('geometry_x_padding_px', 10)
         self.declare_parameter('geometry_morphology_kernel_px', 17)
         self.declare_parameter('geometry_edge_roi_padding_px', 12)
+        self.declare_parameter('split_wide_large_dark_rects', True)
+        self.declare_parameter('large_dark_max_single_width_ratio', 0.36)
+        self.declare_parameter('relax_split_structure', True)
         self.declare_parameter('dark_threshold', 95)
         self.declare_parameter('close_kernel_ratio', 0.045)
         self.declare_parameter('min_area_ratio', 0.16)
@@ -159,6 +162,9 @@ class PingpongRealtimeNode(Node):
         self.declare_parameter('min_ball_ratio', 0.16)
         self.declare_parameter('min_white_ratio', 0.36)
         self.declare_parameter('min_white_component_ratio', 0.30)
+        self.declare_parameter('min_white_shape_component_ratio', 0.18)
+        self.declare_parameter('min_white_circularity', 0.35)
+        self.declare_parameter('max_white_center_offset_ratio', 0.55)
         self.declare_parameter('min_yellow_component_ratio', 0.12)
         self.declare_parameter('min_color_margin', 0.035)
 
@@ -212,6 +218,12 @@ class PingpongRealtimeNode(Node):
             x_padding_px=self._int_parameter('geometry_x_padding_px', 10),
             morphology_kernel_px=self._int_parameter('geometry_morphology_kernel_px', 17),
             edge_roi_padding_px=self._int_parameter('geometry_edge_roi_padding_px', 12),
+            split_wide_large_dark_rects=self._bool_parameter('split_wide_large_dark_rects', True),
+            large_dark_max_single_width_ratio=self._float_parameter(
+                'large_dark_max_single_width_ratio',
+                0.36,
+            ),
+            relax_split_structure=self._bool_parameter('relax_split_structure', True),
         )
 
     def _edge_config_from_parameters(self) -> TrayEdgeFitConfig:
@@ -230,6 +242,9 @@ class PingpongRealtimeNode(Node):
             min_ball_ratio=self._float_parameter('min_ball_ratio', 0.16),
             min_white_ratio=self._float_parameter('min_white_ratio', 0.36),
             min_white_component_ratio=self._float_parameter('min_white_component_ratio', 0.30),
+            min_white_shape_component_ratio=self._float_parameter('min_white_shape_component_ratio', 0.18),
+            min_white_circularity=self._float_parameter('min_white_circularity', 0.35),
+            max_white_center_offset_ratio=self._float_parameter('max_white_center_offset_ratio', 0.55),
             min_yellow_component_ratio=self._float_parameter('min_yellow_component_ratio', 0.12),
             min_color_margin=self._float_parameter('min_color_margin', 0.035),
             hole_grid=TrayHoleGridConfig(

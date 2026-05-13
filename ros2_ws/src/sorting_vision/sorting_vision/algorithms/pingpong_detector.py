@@ -32,6 +32,9 @@ class PingpongDetectorConfig:
     min_ball_ratio: float = 0.16
     min_white_ratio: float = 0.36
     min_white_component_ratio: float = 0.30
+    min_white_shape_component_ratio: float = 0.18
+    min_white_circularity: float = 0.35
+    max_white_center_offset_ratio: float = 0.55
     min_yellow_component_ratio: float = 0.12
     min_color_margin: float = 0.035
     hole_grid: TrayHoleGridConfig = TrayHoleGridConfig()
@@ -171,7 +174,14 @@ def classify_cell(
     ball_ratio = yellow_ratio + white_ratio
     # 连通域比例用于过滤零散反光点；真实球面通常形成较大的连续区域。
     yellow_component_ratio = largest_component_ratio(yellow, circle, valid_count)
-    white_component_ratio = largest_component_ratio(white, circle, valid_count)
+    white_component = largest_component_stats(white, circle, valid_count)
+    white_component_ratio = white_component.area_ratio
+    white_shape_ok = is_white_component_shape_reasonable(
+        component=white_component,
+        local_center=(float(local_u), float(local_v)),
+        radius=radius,
+        config=config,
+    )
 
     class_name, confidence = classify_ratios(
         yellow_ratio=yellow_ratio,
@@ -179,6 +189,7 @@ def classify_cell(
         ball_ratio=ball_ratio,
         yellow_component_ratio=yellow_component_ratio,
         white_component_ratio=white_component_ratio,
+        white_shape_ok=white_shape_ok,
         config=config,
     )
     # debug_u/debug_v 只用于调试图画点：优先贴到颜色连通域中心，不改变矩阵输出坐标。
@@ -186,7 +197,8 @@ def classify_cell(
     if class_name == CLASS_YELLOW:
         debug_point = largest_component_centroid(yellow, circle, x0, y0)
     elif class_name == CLASS_WHITE:
-        debug_point = largest_component_centroid(white, circle, x0, y0)
+        if white_component.centroid is not None:
+            debug_point = (float(x0 + white_component.centroid[0]), float(y0 + white_component.centroid[1]))
 
     return PingpongCell(
         row=center.row,
@@ -218,6 +230,63 @@ def largest_component_ratio(mask: np.ndarray, circle: np.ndarray, valid_count: i
     return float(largest) / float(max(1, valid_count))
 
 
+@dataclass(frozen=True)
+class ComponentStats:
+    """颜色最大连通域的轻量形状信息。"""
+
+    area_ratio: float
+    circularity: float
+    centroid: tuple[float, float] | None
+
+
+def largest_component_stats(mask: np.ndarray, circle: np.ndarray, valid_count: int) -> ComponentStats:
+    """返回颜色最大连通域面积、圆度和质心。"""
+
+    clipped = (mask & circle).astype(np.uint8)
+    if int(np.count_nonzero(clipped)) <= 0:
+        return ComponentStats(area_ratio=0.0, circularity=0.0, centroid=None)
+
+    count, labels, stats, centroids = cv2.connectedComponentsWithStats(clipped, connectivity=8)
+    if count <= 1:
+        return ComponentStats(area_ratio=0.0, circularity=0.0, centroid=None)
+
+    largest_label = int(np.argmax(stats[1:, cv2.CC_STAT_AREA]) + 1)
+    area = float(stats[largest_label, cv2.CC_STAT_AREA])
+    component_mask = (labels == largest_label).astype(np.uint8)
+    contours, _hierarchy = cv2.findContours(component_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    perimeter = sum(float(cv2.arcLength(contour, True)) for contour in contours)
+    circularity = 0.0
+    if perimeter > 1e-6:
+        circularity = float(4.0 * np.pi * area / (perimeter * perimeter))
+    cx, cy = centroids[largest_label]
+    return ComponentStats(
+        area_ratio=area / float(max(1, valid_count)),
+        circularity=circularity,
+        centroid=(float(cx), float(cy)),
+    )
+
+
+def is_white_component_shape_reasonable(
+    component: ComponentStats,
+    local_center: tuple[float, float],
+    radius: int,
+    config: PingpongDetectorConfig,
+) -> bool:
+    """保守过滤空穴白点：白色连通域应足够大、较圆、且靠近穴位中心。"""
+
+    if component.centroid is None:
+        return False
+    if component.area_ratio < config.min_white_shape_component_ratio:
+        return False
+    if component.circularity < config.min_white_circularity:
+        return False
+
+    dx = component.centroid[0] - local_center[0]
+    dy = component.centroid[1] - local_center[1]
+    offset_ratio = float(np.hypot(dx, dy)) / float(max(1, radius))
+    return offset_ratio <= config.max_white_center_offset_ratio
+
+
 def largest_component_centroid(
     mask: np.ndarray,
     circle: np.ndarray,
@@ -246,6 +315,7 @@ def classify_ratios(
     ball_ratio: float,
     yellow_component_ratio: float,
     white_component_ratio: float,
+    white_shape_ok: bool,
     config: PingpongDetectorConfig,
 ) -> tuple[str, float]:
     """根据颜色面积比例和连通域比例给出最终类别。
@@ -260,6 +330,7 @@ def classify_ratios(
     white_candidate = (
         white_ratio >= config.min_white_ratio
         and white_component_ratio >= config.min_white_component_ratio
+        and white_shape_ok
     )
     if not yellow_candidate and not white_candidate:
         # 两类颜色都没达到阈值时按空穴输出；离阈值越远，空穴置信度越高。

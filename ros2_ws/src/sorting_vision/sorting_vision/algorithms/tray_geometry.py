@@ -47,6 +47,9 @@ class TrayGeometryConfig:
     large_dark_max_extent: float = 0.96
     large_dark_min_edge_density: float = 0.08
     large_dark_min_bright_components: int = 18
+    split_wide_large_dark_rects: bool = True
+    large_dark_max_single_width_ratio: float = 0.36
+    relax_split_structure: bool = True
 
 
 @dataclass(frozen=True)
@@ -202,12 +205,41 @@ def locate_large_dark_rect_candidates(
     min_area = image_height * image_width * config.large_dark_min_area_ratio
     min_width = image_width * config.large_dark_min_width_ratio
     min_height = image_height * config.large_dark_min_height_ratio
+    max_single_width = image_width * config.large_dark_max_single_width_ratio
 
     candidates: list[TrayGeometryCandidate] = []
     for contour in contours:
         area = float(cv2.contourArea(contour))
         if area < min_area:
             continue
+        x, y, width, height = cv2.boundingRect(contour)
+        if (
+            config.split_wide_large_dark_rects
+            and width > max_single_width
+            and height >= min_height
+        ):
+            split_boxes = split_large_dark_bbox_by_expected_width(
+                bbox=(x, y, width, height),
+                expected_width=estimate_large_dark_reference_width(
+                    contours=contours,
+                    image_shape=image.shape,
+                    config=config,
+                    exclude_bbox=(x, y, width, height),
+                ),
+                config=config,
+            )
+            for split_box in split_boxes:
+                candidate = large_dark_candidate_from_bbox(
+                    image=image,
+                    mask=mask,
+                    bbox=split_box,
+                    config=config,
+                    relax_structure=config.relax_split_structure,
+                )
+                if candidate is not None:
+                    candidates.append(candidate)
+            continue
+
         rect = cv2.minAreaRect(contour)
         rect_width, rect_height = rect[1]
         if rect_width <= 1.0 or rect_height <= 1.0:
@@ -220,7 +252,6 @@ def locate_large_dark_rect_candidates(
         extent = area / max(rect_area, 1.0)
         if extent < config.large_dark_min_extent or extent > config.large_dark_max_extent:
             continue
-        x, y, width, height = cv2.boundingRect(contour)
         if not has_tray_like_internal_structure(
             image[y:y + height, x:x + width],
             config,
@@ -257,6 +288,93 @@ def locate_large_dark_rect_candidates(
         )
         for index, candidate in enumerate(candidates, start=1)
     ]
+
+
+def split_large_dark_bbox_by_expected_width(
+    bbox: tuple[int, int, int, int],
+    expected_width: float,
+    config: TrayGeometryConfig,
+) -> list[tuple[int, int, int, int]]:
+    """按估计单盘宽度，把粘在一起的大黑框均分成多个候选框。"""
+
+    x, y, width, height = bbox
+    split_count = int(round(width / max(1.0, expected_width)))
+    split_count = max(2, min(config.expected_tray_count, split_count))
+    output: list[tuple[int, int, int, int]] = []
+    for index in range(split_count):
+        x0 = int(round(x + index * width / split_count))
+        x1 = int(round(x + (index + 1) * width / split_count)) - 1
+        output.append((x0, y, x1 - x0 + 1, height))
+    return output
+
+
+def estimate_large_dark_reference_width(
+    contours: tuple[np.ndarray, ...],
+    image_shape: tuple[int, ...],
+    config: TrayGeometryConfig,
+    exclude_bbox: tuple[int, int, int, int],
+) -> float:
+    """用其他正常大黑框宽度估计单个苗盘宽度。"""
+
+    image_height, image_width = image_shape[:2]
+    min_area = image_height * image_width * config.large_dark_min_area_ratio
+    min_width = image_width * config.large_dark_min_width_ratio
+    min_height = image_height * config.large_dark_min_height_ratio
+    widths: list[int] = []
+    for contour in contours:
+        area = float(cv2.contourArea(contour))
+        if area < min_area:
+            continue
+        x, y, width, height = cv2.boundingRect(contour)
+        if (x, y, width, height) == exclude_bbox:
+            continue
+        if width >= min_width and height >= min_height:
+            widths.append(width)
+    if widths:
+        return float(np.median(np.asarray(widths, dtype=np.float32)))
+    return float(max(1, exclude_bbox[2] / 2.0))
+
+
+def large_dark_candidate_from_bbox(
+    image: np.ndarray,
+    mask: np.ndarray,
+    bbox: tuple[int, int, int, int],
+    config: TrayGeometryConfig,
+    relax_structure: bool = False,
+) -> TrayGeometryCandidate | None:
+    """从拆分后的子框生成 large_dark_rect 候选。"""
+
+    x, y, width, height = bbox
+    if width <= 2 or height <= 2:
+        return None
+    crop = image[y:y + height, x:x + width]
+    if not relax_structure and not has_tray_like_internal_structure(crop, config):
+        return None
+
+    roi_mask = mask[y:y + height, x:x + width]
+    contours, _hierarchy = cv2.findContours(roi_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return None
+    contour = max(contours, key=cv2.contourArea)
+    rect = cv2.minAreaRect(contour)
+    rect_width, rect_height = rect[1]
+    if rect_width <= 1.0 or rect_height <= 1.0:
+        return None
+    box = cv2.boxPoints(rect).astype(np.float32)
+    box[:, 0] += x
+    box[:, 1] += y
+    corners = order_points_clockwise(box)
+    area = float(cv2.contourArea(contour))
+    center = (float(rect[0][0] + x), float(rect[0][1] + y))
+    return TrayGeometryCandidate(
+        tray_id=0,
+        status='split_large_dark_rect',
+        message='split wide large dark rect by expected tray width',
+        bbox=(int(x), int(y), int(width), int(height)),
+        center=center,
+        area=area,
+        corners=corners,
+    )
 
 
 def build_dark_body_mask(gray: np.ndarray, config: TrayGeometryConfig) -> np.ndarray:
