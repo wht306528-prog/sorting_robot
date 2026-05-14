@@ -35,7 +35,9 @@ def generate_launch_description() -> LaunchDescription:
     min_white_component_diameter_ratio = LaunchConfiguration('min_white_component_diameter_ratio')
     min_white_circularity = LaunchConfiguration('min_white_circularity')
     max_white_center_offset_ratio = LaunchConfiguration('max_white_center_offset_ratio')
+    min_ball_ratio = LaunchConfiguration('min_ball_ratio')
     min_yellow_component_ratio = LaunchConfiguration('min_yellow_component_ratio')
+    min_color_margin = LaunchConfiguration('min_color_margin')
     start_tcp_sender = LaunchConfiguration('start_tcp_sender')
     f407_host = LaunchConfiguration('f407_host')
     f407_port = LaunchConfiguration('f407_port')
@@ -65,7 +67,9 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument('min_white_component_diameter_ratio', default_value='0.95'),
             DeclareLaunchArgument('min_white_circularity', default_value='0.35'),
             DeclareLaunchArgument('max_white_center_offset_ratio', default_value='0.55'),
+            DeclareLaunchArgument('min_ball_ratio', default_value='0.16'),
             DeclareLaunchArgument('min_yellow_component_ratio', default_value='0.12'),
+            DeclareLaunchArgument('min_color_margin', default_value='0.035'),
             DeclareLaunchArgument('start_tcp_sender', default_value='true'),
             DeclareLaunchArgument('f407_host', default_value='127.0.0.1'),
             DeclareLaunchArgument('f407_port', default_value='9000'),
@@ -121,7 +125,9 @@ def generate_launch_description() -> LaunchDescription:
                         'min_white_component_diameter_ratio': min_white_component_diameter_ratio,
                         'min_white_circularity': min_white_circularity,
                         'max_white_center_offset_ratio': max_white_center_offset_ratio,
+                        'min_ball_ratio': min_ball_ratio,
                         'min_yellow_component_ratio': min_yellow_component_ratio,
+                        'min_color_margin': min_color_margin,
                     }
                 ],
             ),
