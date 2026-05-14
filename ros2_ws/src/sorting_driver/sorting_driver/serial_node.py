@@ -29,6 +29,7 @@ from sorting_interfaces.msg import TrayMatrix
 from sorting_driver.protocol import (
     _format_cell,
     format_tray_matrix_text_frame,
+    infer_tray_total,
     validate_tray_matrix,
 )
 
@@ -80,8 +81,9 @@ class MatrixProtocolPrinter(Node):
             return
 
         # 当前阶段先打印摘要，避免用户在 150 行空穴里找不到真实识别结果。
+        tray_total = infer_tray_total(message)
         self.get_logger().info(
-            f'Received frame_id={message.frame_id} cells={len(message.cells)}'
+            f'Received frame_id={message.frame_id} tray_total={tray_total} cells={len(message.cells)}'
         )
         print(format_matrix_summary(message, self._max_non_empty_rows), flush=True)
         if self._print_full_frame:
@@ -96,12 +98,15 @@ def format_matrix_summary(message: TrayMatrix, max_non_empty_rows: int = 30) -> 
     white_count = sum(1 for cell in non_empty if cell.class_id == 1)
     yellow_count = sum(1 for cell in non_empty if cell.class_id == 2)
     empty_count = sum(1 for cell in message.cells if cell.class_id == 0)
+    tray_total = infer_tray_total(message)
     lines = [
         '========== TrayMatrix 摘要 ==========',
-        f'frame_id={message.frame_id} count={len(message.cells)}',
+        f'frame_id={message.frame_id} tray_total={tray_total} count={len(message.cells)}',
         f'非空穴位: {len(non_empty)}  白球: {white_count}  黄球: {yellow_count}  空穴: {empty_count}',
         '8列顺序: tray_id,col,row,class_id,confidence,u,v,z',
     ]
+    if tray_total != 3:
+        lines.append('警告: tray_total != 3，本帧后续 150 格数据建议下游判为无效。')
     if non_empty:
         lines.append(f'前 {min(len(non_empty), max_non_empty_rows)} 条非空穴位:')
         for cell in non_empty[:max_non_empty_rows]:

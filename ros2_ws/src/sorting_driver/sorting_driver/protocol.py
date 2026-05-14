@@ -13,7 +13,7 @@
     START frame_id=12 count=150
     1,1,1,1,0.950,140.000,40.000,601.000
     ...
-    END checksum=8585
+    END checksum=8585 tray_total=3
 
 注意：
 - 这里的 checksum 是早期调试用简单校验，不是最终工业通信校验。
@@ -24,7 +24,10 @@
 
 from __future__ import annotations
 
-from sorting_interfaces.msg import TrayMatrix
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sorting_interfaces.msg import TrayMatrix
 
 
 # 三个苗盘，每个苗盘 5 列 x 10 行，共 150 个穴位。
@@ -44,7 +47,7 @@ def format_tray_matrix_text_frame(message: TrayMatrix) -> str:
     data_lines = [_format_cell(cell) for cell in message.cells]
 
     # END 行带简单 checksum，方便 F407 或调试工具判断一帧是否完整。
-    end_line = f'END checksum={calculate_checksum(data_lines)}'
+    end_line = f'END checksum={calculate_checksum(data_lines)} tray_total={infer_tray_total(message)}'
     return '\n'.join([start_line, *data_lines, end_line])
 
 
@@ -63,7 +66,6 @@ def validate_tray_matrix(message: TrayMatrix) -> list[str]:
         errors.append(
             f'expected {EXPECTED_CELL_COUNT} cells, got {len(message.cells)}'
         )
-
     seen_positions: set[tuple[int, int, int]] = set()
     for index, cell in enumerate(message.cells):
         prefix = f'cell[{index}]'
@@ -103,6 +105,27 @@ def calculate_checksum(lines: list[str]) -> int:
     for line in lines:
         total += sum(line.encode('utf-8'))
     return total % 65536
+
+
+def infer_tray_total(message: TrayMatrix) -> int:
+    """从 150 格矩阵推导本帧实际带坐标的苗盘数量。
+
+    视觉节点对未检测到的盘会补 empty，且 u/v/z 为 0。检测到的盘即使全是空穴，
+    也会写入每个穴位的真实像素坐标。因此这里按 tray_id 是否出现非零 u/v/z
+    来推导 tray_total，供 F407 在 END 行做整帧有效性判断。
+    """
+
+    detected_tray_ids = {
+        int(cell.tray_id)
+        for cell in message.cells
+        if int(cell.tray_id) in (1, 2, 3)
+        and (
+            abs(float(cell.u)) > 1e-6
+            or abs(float(cell.v)) > 1e-6
+            or abs(float(cell.z)) > 1e-6
+        )
+    }
+    return len(detected_tray_ids)
 
 
 def _format_cell(cell) -> str:
