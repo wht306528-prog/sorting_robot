@@ -32,6 +32,7 @@ def generate_launch_description() -> LaunchDescription:
     min_white_ratio = LaunchConfiguration('min_white_ratio')
     min_white_component_ratio = LaunchConfiguration('min_white_component_ratio')
     min_white_shape_component_ratio = LaunchConfiguration('min_white_shape_component_ratio')
+    min_white_component_diameter_ratio = LaunchConfiguration('min_white_component_diameter_ratio')
     min_white_circularity = LaunchConfiguration('min_white_circularity')
     max_white_center_offset_ratio = LaunchConfiguration('max_white_center_offset_ratio')
     min_yellow_component_ratio = LaunchConfiguration('min_yellow_component_ratio')
@@ -61,6 +62,7 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument('min_white_ratio', default_value='0.36'),
             DeclareLaunchArgument('min_white_component_ratio', default_value='0.30'),
             DeclareLaunchArgument('min_white_shape_component_ratio', default_value='0.18'),
+            DeclareLaunchArgument('min_white_component_diameter_ratio', default_value='0.95'),
             DeclareLaunchArgument('min_white_circularity', default_value='0.35'),
             DeclareLaunchArgument('max_white_center_offset_ratio', default_value='0.55'),
             DeclareLaunchArgument('min_yellow_component_ratio', default_value='0.12'),
@@ -116,6 +118,7 @@ def generate_launch_description() -> LaunchDescription:
                         'min_white_ratio': min_white_ratio,
                         'min_white_component_ratio': min_white_component_ratio,
                         'min_white_shape_component_ratio': min_white_shape_component_ratio,
+                        'min_white_component_diameter_ratio': min_white_component_diameter_ratio,
                         'min_white_circularity': min_white_circularity,
                         'max_white_center_offset_ratio': max_white_center_offset_ratio,
                         'min_yellow_component_ratio': min_yellow_component_ratio,

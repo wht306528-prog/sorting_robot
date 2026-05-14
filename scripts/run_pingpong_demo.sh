@@ -24,6 +24,7 @@ RELAX_SPLIT_STRUCTURE="${RELAX_SPLIT_STRUCTURE:-true}"
 MIN_WHITE_RATIO="${MIN_WHITE_RATIO:-0.36}"
 MIN_WHITE_COMPONENT_RATIO="${MIN_WHITE_COMPONENT_RATIO:-0.30}"
 MIN_WHITE_SHAPE_COMPONENT_RATIO="${MIN_WHITE_SHAPE_COMPONENT_RATIO:-0.18}"
+MIN_WHITE_COMPONENT_DIAMETER_RATIO="${MIN_WHITE_COMPONENT_DIAMETER_RATIO:-0.95}"
 MIN_WHITE_CIRCULARITY="${MIN_WHITE_CIRCULARITY:-0.35}"
 MAX_WHITE_CENTER_OFFSET_RATIO="${MAX_WHITE_CENTER_OFFSET_RATIO:-0.55}"
 MIN_YELLOW_COMPONENT_RATIO="${MIN_YELLOW_COMPONENT_RATIO:-0.12}"
@@ -62,6 +63,7 @@ usage() {
   MIN_WHITE_RATIO=0.36
   MIN_WHITE_COMPONENT_RATIO=0.30
   MIN_WHITE_SHAPE_COMPONENT_RATIO=0.18
+  MIN_WHITE_COMPONENT_DIAMETER_RATIO=0.95
   MIN_WHITE_CIRCULARITY=0.35
   MAX_WHITE_CENTER_OFFSET_RATIO=0.55
 EOF
@@ -135,7 +137,8 @@ echo "use_undistort=$USE_UNDISTORT color_camera_info_topic=$COLOR_CAMERA_INFO_TO
 echo "expected_tray_count=$EXPECTED_TRAY_COUNT start_tcp_sender=$START_TCP_SENDER tcp=$F407_HOST:$F407_PORT"
 echo "split_wide_large_dark_rects=$SPLIT_WIDE_LARGE_DARK_RECTS large_dark_max_single_width_ratio=$LARGE_DARK_MAX_SINGLE_WIDTH_RATIO relax_split_structure=$RELAX_SPLIT_STRUCTURE"
 echo "min_white_ratio=$MIN_WHITE_RATIO min_white_component_ratio=$MIN_WHITE_COMPONENT_RATIO"
-echo "min_white_shape_component_ratio=$MIN_WHITE_SHAPE_COMPONENT_RATIO min_white_circularity=$MIN_WHITE_CIRCULARITY max_white_center_offset_ratio=$MAX_WHITE_CENTER_OFFSET_RATIO"
+echo "min_white_shape_component_ratio=$MIN_WHITE_SHAPE_COMPONENT_RATIO min_white_component_diameter_ratio=$MIN_WHITE_COMPONENT_DIAMETER_RATIO"
+echo "min_white_circularity=$MIN_WHITE_CIRCULARITY max_white_center_offset_ratio=$MAX_WHITE_CENTER_OFFSET_RATIO"
 echo "实际 RGB/Depth 分辨率和内参会由 ROS 节点首次收到图像后打印"
 
 # launch 同时启动：可选 USB 相机节点、乒乓球实时识别节点、矩阵 TCP 发送节点。
@@ -159,6 +162,7 @@ exec ros2 launch sorting_bringup pingpong_demo.launch.py \
   min_white_ratio:="$MIN_WHITE_RATIO" \
   min_white_component_ratio:="$MIN_WHITE_COMPONENT_RATIO" \
   min_white_shape_component_ratio:="$MIN_WHITE_SHAPE_COMPONENT_RATIO" \
+  min_white_component_diameter_ratio:="$MIN_WHITE_COMPONENT_DIAMETER_RATIO" \
   min_white_circularity:="$MIN_WHITE_CIRCULARITY" \
   max_white_center_offset_ratio:="$MAX_WHITE_CENTER_OFFSET_RATIO" \
   min_yellow_component_ratio:="$MIN_YELLOW_COMPONENT_RATIO" \

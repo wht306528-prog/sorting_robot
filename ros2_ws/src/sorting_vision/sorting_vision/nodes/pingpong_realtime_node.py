@@ -163,6 +163,7 @@ class PingpongRealtimeNode(Node):
         self.declare_parameter('min_white_ratio', 0.36)
         self.declare_parameter('min_white_component_ratio', 0.30)
         self.declare_parameter('min_white_shape_component_ratio', 0.18)
+        self.declare_parameter('min_white_component_diameter_ratio', 0.95)
         self.declare_parameter('min_white_circularity', 0.35)
         self.declare_parameter('max_white_center_offset_ratio', 0.55)
         self.declare_parameter('min_yellow_component_ratio', 0.12)
@@ -243,6 +244,10 @@ class PingpongRealtimeNode(Node):
             min_white_ratio=self._float_parameter('min_white_ratio', 0.36),
             min_white_component_ratio=self._float_parameter('min_white_component_ratio', 0.30),
             min_white_shape_component_ratio=self._float_parameter('min_white_shape_component_ratio', 0.18),
+            min_white_component_diameter_ratio=self._float_parameter(
+                'min_white_component_diameter_ratio',
+                0.95,
+            ),
             min_white_circularity=self._float_parameter('min_white_circularity', 0.35),
             max_white_center_offset_ratio=self._float_parameter('max_white_center_offset_ratio', 0.55),
             min_yellow_component_ratio=self._float_parameter('min_yellow_component_ratio', 0.12),

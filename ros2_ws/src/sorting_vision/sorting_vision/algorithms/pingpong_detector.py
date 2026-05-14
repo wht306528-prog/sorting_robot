@@ -33,6 +33,7 @@ class PingpongDetectorConfig:
     min_white_ratio: float = 0.36
     min_white_component_ratio: float = 0.30
     min_white_shape_component_ratio: float = 0.18
+    min_white_component_diameter_ratio: float = 0.95
     min_white_circularity: float = 0.35
     max_white_center_offset_ratio: float = 0.55
     min_yellow_component_ratio: float = 0.12
@@ -174,7 +175,7 @@ def classify_cell(
     ball_ratio = yellow_ratio + white_ratio
     # 连通域比例用于过滤零散反光点；真实球面通常形成较大的连续区域。
     yellow_component_ratio = largest_component_ratio(yellow, circle, valid_count)
-    white_component = largest_component_stats(white, circle, valid_count)
+    white_component = largest_component_stats(white, circle, valid_count, radius)
     white_component_ratio = white_component.area_ratio
     white_shape_ok = is_white_component_shape_reasonable(
         component=white_component,
@@ -235,20 +236,26 @@ class ComponentStats:
     """颜色最大连通域的轻量形状信息。"""
 
     area_ratio: float
+    diameter_ratio: float
     circularity: float
     centroid: tuple[float, float] | None
 
 
-def largest_component_stats(mask: np.ndarray, circle: np.ndarray, valid_count: int) -> ComponentStats:
+def largest_component_stats(
+    mask: np.ndarray,
+    circle: np.ndarray,
+    valid_count: int,
+    radius: int,
+) -> ComponentStats:
     """返回颜色最大连通域面积、圆度和质心。"""
 
     clipped = (mask & circle).astype(np.uint8)
     if int(np.count_nonzero(clipped)) <= 0:
-        return ComponentStats(area_ratio=0.0, circularity=0.0, centroid=None)
+        return ComponentStats(area_ratio=0.0, diameter_ratio=0.0, circularity=0.0, centroid=None)
 
     count, labels, stats, centroids = cv2.connectedComponentsWithStats(clipped, connectivity=8)
     if count <= 1:
-        return ComponentStats(area_ratio=0.0, circularity=0.0, centroid=None)
+        return ComponentStats(area_ratio=0.0, diameter_ratio=0.0, circularity=0.0, centroid=None)
 
     largest_label = int(np.argmax(stats[1:, cv2.CC_STAT_AREA]) + 1)
     area = float(stats[largest_label, cv2.CC_STAT_AREA])
@@ -258,9 +265,11 @@ def largest_component_stats(mask: np.ndarray, circle: np.ndarray, valid_count: i
     circularity = 0.0
     if perimeter > 1e-6:
         circularity = float(4.0 * np.pi * area / (perimeter * perimeter))
+    equivalent_diameter = float(2.0 * np.sqrt(area / np.pi))
     cx, cy = centroids[largest_label]
     return ComponentStats(
         area_ratio=area / float(max(1, valid_count)),
+        diameter_ratio=equivalent_diameter / float(max(1, radius)),
         circularity=circularity,
         centroid=(float(cx), float(cy)),
     )
@@ -277,6 +286,8 @@ def is_white_component_shape_reasonable(
     if component.centroid is None:
         return False
     if component.area_ratio < config.min_white_shape_component_ratio:
+        return False
+    if component.diameter_ratio < config.min_white_component_diameter_ratio:
         return False
     if component.circularity < config.min_white_circularity:
         return False
