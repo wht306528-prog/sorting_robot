@@ -18,9 +18,24 @@ USE_UNDISTORT="${USE_UNDISTORT:-true}"
 DEPTH_WINDOW_PX="${DEPTH_WINDOW_PX:-5}"
 EXPECTED_TRAY_COUNT="${EXPECTED_TRAY_COUNT:-3}"
 PROCESS_EVERY_N_FRAMES="${PROCESS_EVERY_N_FRAMES:-3}"
+GEOMETRY_METHOD="${GEOMETRY_METHOD:-large_dark_rect}"
 SPLIT_WIDE_LARGE_DARK_RECTS="${SPLIT_WIDE_LARGE_DARK_RECTS:-true}"
 LARGE_DARK_MAX_SINGLE_WIDTH_RATIO="${LARGE_DARK_MAX_SINGLE_WIDTH_RATIO:-0.36}"
 RELAX_SPLIT_STRUCTURE="${RELAX_SPLIT_STRUCTURE:-true}"
+GEOMETRY_DARK_THRESHOLD="${GEOMETRY_DARK_THRESHOLD:-85}"
+GEOMETRY_PROJECTION_ACTIVE_RATIO="${GEOMETRY_PROJECTION_ACTIVE_RATIO:-0.10}"
+GEOMETRY_PROJECTION_SMOOTH_PX="${GEOMETRY_PROJECTION_SMOOTH_PX:-19}"
+GEOMETRY_MIN_WIDTH_RATIO="${GEOMETRY_MIN_WIDTH_RATIO:-0.08}"
+GEOMETRY_MIN_HEIGHT_RATIO="${GEOMETRY_MIN_HEIGHT_RATIO:-0.35}"
+GEOMETRY_MIN_AREA_RATIO="${GEOMETRY_MIN_AREA_RATIO:-0.025}"
+GEOMETRY_X_PADDING_PX="${GEOMETRY_X_PADDING_PX:-10}"
+GEOMETRY_MORPHOLOGY_KERNEL_PX="${GEOMETRY_MORPHOLOGY_KERNEL_PX:-17}"
+GEOMETRY_EDGE_ROI_PADDING_PX="${GEOMETRY_EDGE_ROI_PADDING_PX:-12}"
+DARK_THRESHOLD="${DARK_THRESHOLD:-95}"
+CLOSE_KERNEL_RATIO="${CLOSE_KERNEL_RATIO:-0.045}"
+MIN_AREA_RATIO="${MIN_AREA_RATIO:-0.16}"
+SIDE_BAND_RATIO="${SIDE_BAND_RATIO:-0.075}"
+ROI_RADIUS_RATIO="${ROI_RADIUS_RATIO:-0.34}"
 MIN_WHITE_RATIO="${MIN_WHITE_RATIO:-0.36}"
 MIN_WHITE_COMPONENT_RATIO="${MIN_WHITE_COMPONENT_RATIO:-0.30}"
 MIN_WHITE_SHAPE_COMPONENT_RATIO="${MIN_WHITE_SHAPE_COMPONENT_RATIO:-0.18}"
@@ -51,9 +66,24 @@ usage() {
 常用覆盖:
   EXPECTED_TRAY_COUNT=1|2|3
   PROCESS_EVERY_N_FRAMES=3
+  GEOMETRY_METHOD=large_dark_rect
   SPLIT_WIDE_LARGE_DARK_RECTS=true|false
   LARGE_DARK_MAX_SINGLE_WIDTH_RATIO=0.36
   RELAX_SPLIT_STRUCTURE=true|false
+  GEOMETRY_DARK_THRESHOLD=85
+  GEOMETRY_PROJECTION_ACTIVE_RATIO=0.10
+  GEOMETRY_PROJECTION_SMOOTH_PX=19
+  GEOMETRY_MIN_WIDTH_RATIO=0.08
+  GEOMETRY_MIN_HEIGHT_RATIO=0.35
+  GEOMETRY_MIN_AREA_RATIO=0.025
+  GEOMETRY_X_PADDING_PX=10
+  GEOMETRY_MORPHOLOGY_KERNEL_PX=17
+  GEOMETRY_EDGE_ROI_PADDING_PX=12
+  DARK_THRESHOLD=95
+  CLOSE_KERNEL_RATIO=0.045
+  MIN_AREA_RATIO=0.16
+  SIDE_BAND_RATIO=0.075
+  ROI_RADIUS_RATIO=0.34
   F407_HOST=127.0.0.1
   F407_PORT=9000
   USE_DEPTH=false|true
@@ -140,7 +170,13 @@ echo "realsense_color_profile目标值=$REALSENSE_COLOR_PROFILE realsense_depth_
 echo "use_depth=$USE_DEPTH depth_image_topic=$DEPTH_IMAGE_TOPIC"
 echo "use_undistort=$USE_UNDISTORT color_camera_info_topic=$COLOR_CAMERA_INFO_TOPIC"
 echo "expected_tray_count=$EXPECTED_TRAY_COUNT start_tcp_sender=$START_TCP_SENDER tcp=$F407_HOST:$F407_PORT"
+echo "geometry_method=$GEOMETRY_METHOD"
 echo "split_wide_large_dark_rects=$SPLIT_WIDE_LARGE_DARK_RECTS large_dark_max_single_width_ratio=$LARGE_DARK_MAX_SINGLE_WIDTH_RATIO relax_split_structure=$RELAX_SPLIT_STRUCTURE"
+echo "geometry_dark_threshold=$GEOMETRY_DARK_THRESHOLD geometry_projection_active_ratio=$GEOMETRY_PROJECTION_ACTIVE_RATIO geometry_projection_smooth_px=$GEOMETRY_PROJECTION_SMOOTH_PX"
+echo "geometry_min_width_ratio=$GEOMETRY_MIN_WIDTH_RATIO geometry_min_height_ratio=$GEOMETRY_MIN_HEIGHT_RATIO geometry_min_area_ratio=$GEOMETRY_MIN_AREA_RATIO"
+echo "geometry_x_padding_px=$GEOMETRY_X_PADDING_PX geometry_morphology_kernel_px=$GEOMETRY_MORPHOLOGY_KERNEL_PX geometry_edge_roi_padding_px=$GEOMETRY_EDGE_ROI_PADDING_PX"
+echo "dark_threshold=$DARK_THRESHOLD close_kernel_ratio=$CLOSE_KERNEL_RATIO min_area_ratio=$MIN_AREA_RATIO side_band_ratio=$SIDE_BAND_RATIO"
+echo "roi_radius_ratio=$ROI_RADIUS_RATIO"
 echo "min_white_ratio=$MIN_WHITE_RATIO min_white_component_ratio=$MIN_WHITE_COMPONENT_RATIO"
 echo "min_white_shape_component_ratio=$MIN_WHITE_SHAPE_COMPONENT_RATIO min_white_component_diameter_ratio=$MIN_WHITE_COMPONENT_DIAMETER_RATIO"
 echo "min_white_circularity=$MIN_WHITE_CIRCULARITY max_white_center_offset_ratio=$MAX_WHITE_CENTER_OFFSET_RATIO"
@@ -162,9 +198,24 @@ exec ros2 launch sorting_bringup pingpong_demo.launch.py \
   depth_window_px:="$DEPTH_WINDOW_PX" \
   expected_tray_count:="$EXPECTED_TRAY_COUNT" \
   process_every_n_frames:="$PROCESS_EVERY_N_FRAMES" \
+  geometry_method:="$GEOMETRY_METHOD" \
   split_wide_large_dark_rects:="$SPLIT_WIDE_LARGE_DARK_RECTS" \
   large_dark_max_single_width_ratio:="$LARGE_DARK_MAX_SINGLE_WIDTH_RATIO" \
   relax_split_structure:="$RELAX_SPLIT_STRUCTURE" \
+  geometry_dark_threshold:="$GEOMETRY_DARK_THRESHOLD" \
+  geometry_projection_active_ratio:="$GEOMETRY_PROJECTION_ACTIVE_RATIO" \
+  geometry_projection_smooth_px:="$GEOMETRY_PROJECTION_SMOOTH_PX" \
+  geometry_min_width_ratio:="$GEOMETRY_MIN_WIDTH_RATIO" \
+  geometry_min_height_ratio:="$GEOMETRY_MIN_HEIGHT_RATIO" \
+  geometry_min_area_ratio:="$GEOMETRY_MIN_AREA_RATIO" \
+  geometry_x_padding_px:="$GEOMETRY_X_PADDING_PX" \
+  geometry_morphology_kernel_px:="$GEOMETRY_MORPHOLOGY_KERNEL_PX" \
+  geometry_edge_roi_padding_px:="$GEOMETRY_EDGE_ROI_PADDING_PX" \
+  dark_threshold:="$DARK_THRESHOLD" \
+  close_kernel_ratio:="$CLOSE_KERNEL_RATIO" \
+  min_area_ratio:="$MIN_AREA_RATIO" \
+  side_band_ratio:="$SIDE_BAND_RATIO" \
+  roi_radius_ratio:="$ROI_RADIUS_RATIO" \
   min_white_ratio:="$MIN_WHITE_RATIO" \
   min_white_component_ratio:="$MIN_WHITE_COMPONENT_RATIO" \
   min_white_shape_component_ratio:="$MIN_WHITE_SHAPE_COMPONENT_RATIO" \

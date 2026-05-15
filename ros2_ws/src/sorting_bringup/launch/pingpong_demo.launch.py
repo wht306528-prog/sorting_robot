@@ -26,9 +26,24 @@ def generate_launch_description() -> LaunchDescription:
     depth_window_px = LaunchConfiguration('depth_window_px')
     expected_tray_count = LaunchConfiguration('expected_tray_count')
     process_every_n_frames = LaunchConfiguration('process_every_n_frames')
+    geometry_method = LaunchConfiguration('geometry_method')
     split_wide_large_dark_rects = LaunchConfiguration('split_wide_large_dark_rects')
     large_dark_max_single_width_ratio = LaunchConfiguration('large_dark_max_single_width_ratio')
     relax_split_structure = LaunchConfiguration('relax_split_structure')
+    geometry_dark_threshold = LaunchConfiguration('geometry_dark_threshold')
+    geometry_projection_active_ratio = LaunchConfiguration('geometry_projection_active_ratio')
+    geometry_projection_smooth_px = LaunchConfiguration('geometry_projection_smooth_px')
+    geometry_min_width_ratio = LaunchConfiguration('geometry_min_width_ratio')
+    geometry_min_height_ratio = LaunchConfiguration('geometry_min_height_ratio')
+    geometry_min_area_ratio = LaunchConfiguration('geometry_min_area_ratio')
+    geometry_x_padding_px = LaunchConfiguration('geometry_x_padding_px')
+    geometry_morphology_kernel_px = LaunchConfiguration('geometry_morphology_kernel_px')
+    geometry_edge_roi_padding_px = LaunchConfiguration('geometry_edge_roi_padding_px')
+    dark_threshold = LaunchConfiguration('dark_threshold')
+    close_kernel_ratio = LaunchConfiguration('close_kernel_ratio')
+    min_area_ratio = LaunchConfiguration('min_area_ratio')
+    side_band_ratio = LaunchConfiguration('side_band_ratio')
+    roi_radius_ratio = LaunchConfiguration('roi_radius_ratio')
     min_white_ratio = LaunchConfiguration('min_white_ratio')
     min_white_component_ratio = LaunchConfiguration('min_white_component_ratio')
     min_white_shape_component_ratio = LaunchConfiguration('min_white_shape_component_ratio')
@@ -58,9 +73,24 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument('depth_window_px', default_value='5'),
             DeclareLaunchArgument('expected_tray_count', default_value='3'),
             DeclareLaunchArgument('process_every_n_frames', default_value='3'),
+            DeclareLaunchArgument('geometry_method', default_value='large_dark_rect'),
             DeclareLaunchArgument('split_wide_large_dark_rects', default_value='true'),
             DeclareLaunchArgument('large_dark_max_single_width_ratio', default_value='0.36'),
             DeclareLaunchArgument('relax_split_structure', default_value='true'),
+            DeclareLaunchArgument('geometry_dark_threshold', default_value='85'),
+            DeclareLaunchArgument('geometry_projection_active_ratio', default_value='0.10'),
+            DeclareLaunchArgument('geometry_projection_smooth_px', default_value='19'),
+            DeclareLaunchArgument('geometry_min_width_ratio', default_value='0.08'),
+            DeclareLaunchArgument('geometry_min_height_ratio', default_value='0.35'),
+            DeclareLaunchArgument('geometry_min_area_ratio', default_value='0.025'),
+            DeclareLaunchArgument('geometry_x_padding_px', default_value='10'),
+            DeclareLaunchArgument('geometry_morphology_kernel_px', default_value='17'),
+            DeclareLaunchArgument('geometry_edge_roi_padding_px', default_value='12'),
+            DeclareLaunchArgument('dark_threshold', default_value='95'),
+            DeclareLaunchArgument('close_kernel_ratio', default_value='0.045'),
+            DeclareLaunchArgument('min_area_ratio', default_value='0.16'),
+            DeclareLaunchArgument('side_band_ratio', default_value='0.075'),
+            DeclareLaunchArgument('roi_radius_ratio', default_value='0.34'),
             DeclareLaunchArgument('min_white_ratio', default_value='0.36'),
             DeclareLaunchArgument('min_white_component_ratio', default_value='0.30'),
             DeclareLaunchArgument('min_white_shape_component_ratio', default_value='0.18'),
@@ -116,9 +146,24 @@ def generate_launch_description() -> LaunchDescription:
                         'depth_window_px': depth_window_px,
                         'expected_tray_count': expected_tray_count,
                         'process_every_n_frames': process_every_n_frames,
+                        'geometry_method': geometry_method,
                         'split_wide_large_dark_rects': split_wide_large_dark_rects,
                         'large_dark_max_single_width_ratio': large_dark_max_single_width_ratio,
                         'relax_split_structure': relax_split_structure,
+                        'geometry_dark_threshold': geometry_dark_threshold,
+                        'geometry_projection_active_ratio': geometry_projection_active_ratio,
+                        'geometry_projection_smooth_px': geometry_projection_smooth_px,
+                        'geometry_min_width_ratio': geometry_min_width_ratio,
+                        'geometry_min_height_ratio': geometry_min_height_ratio,
+                        'geometry_min_area_ratio': geometry_min_area_ratio,
+                        'geometry_x_padding_px': geometry_x_padding_px,
+                        'geometry_morphology_kernel_px': geometry_morphology_kernel_px,
+                        'geometry_edge_roi_padding_px': geometry_edge_roi_padding_px,
+                        'dark_threshold': dark_threshold,
+                        'close_kernel_ratio': close_kernel_ratio,
+                        'min_area_ratio': min_area_ratio,
+                        'side_band_ratio': side_band_ratio,
+                        'roi_radius_ratio': roi_radius_ratio,
                         'min_white_ratio': min_white_ratio,
                         'min_white_component_ratio': min_white_component_ratio,
                         'min_white_shape_component_ratio': min_white_shape_component_ratio,
