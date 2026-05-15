@@ -56,6 +56,8 @@ def generate_launch_description() -> LaunchDescription:
     start_tcp_sender = LaunchConfiguration('start_tcp_sender')
     f407_host = LaunchConfiguration('f407_host')
     f407_port = LaunchConfiguration('f407_port')
+    tcp_connection_log_interval_sec = LaunchConfiguration('tcp_connection_log_interval_sec')
+    tcp_send_log_interval_sec = LaunchConfiguration('tcp_send_log_interval_sec')
 
     return LaunchDescription(
         [
@@ -103,6 +105,8 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument('start_tcp_sender', default_value='true'),
             DeclareLaunchArgument('f407_host', default_value='127.0.0.1'),
             DeclareLaunchArgument('f407_port', default_value='9000'),
+            DeclareLaunchArgument('tcp_connection_log_interval_sec', default_value='3.0'),
+            DeclareLaunchArgument('tcp_send_log_interval_sec', default_value='2.0'),
             Node(
                 # 普通 USB 摄像头入口；topic 模式下 start_camera=false，不启动它。
                 package='v4l2_camera',
@@ -188,6 +192,8 @@ def generate_launch_description() -> LaunchDescription:
                         'tray_matrix_topic': '/sorting/tray_matrix',
                         'f407_host': f407_host,
                         'f407_port': f407_port,
+                        'connection_log_interval_sec': tcp_connection_log_interval_sec,
+                        'send_log_interval_sec': tcp_send_log_interval_sec,
                     }
                 ],
             ),

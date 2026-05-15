@@ -33,6 +33,7 @@ f407_host 和 f407_port，不需要翻代码。
 from __future__ import annotations
 
 import socket
+import time
 
 from rclpy.node import Node
 import rclpy
@@ -57,6 +58,8 @@ class MatrixTcpSender(Node):
         self.declare_parameter('f407_host', '127.0.0.1')
         self.declare_parameter('f407_port', 9000)
         self.declare_parameter('send_timeout_sec', 2.0)
+        self.declare_parameter('connection_log_interval_sec', 3.0)
+        self.declare_parameter('send_log_interval_sec', 2.0)
 
         self._topic_name = (
             self.get_parameter('tray_matrix_topic')
@@ -74,7 +77,20 @@ class MatrixTcpSender(Node):
             .get_parameter_value()
             .double_value
         )
+        self._connection_log_interval = (
+            self.get_parameter('connection_log_interval_sec')
+            .get_parameter_value()
+            .double_value
+        )
+        self._send_log_interval = (
+            self.get_parameter('send_log_interval_sec')
+            .get_parameter_value()
+            .double_value
+        )
         self._socket: socket.socket | None = None
+        self._last_connection_error_log_time = 0.0
+        self._last_send_log_time = 0.0
+        self._sent_frame_count = 0
 
         # 订阅视觉侧输出矩阵。收到一帧，就尝试发送一帧文本协议。
         self._subscription = self.create_subscription(
@@ -111,15 +127,14 @@ class MatrixTcpSender(Node):
             assert self._socket is not None
             self._socket.sendall(payload)
         except OSError as exc:
-            self.get_logger().error(
-                f'Failed to send frame_id={message.frame_id}: {exc}'
+            self._log_connection_error(
+                f'F407 not connected; frame_id={message.frame_id} not sent: {exc}'
             )
             self._close_socket()
             return
 
-        self.get_logger().info(
-            f'Sent frame_id={message.frame_id} bytes={len(payload)}'
-        )
+        self._sent_frame_count += 1
+        self._log_send_status(message.frame_id, len(payload))
 
     def _ensure_connected(self) -> None:
         """确保 TCP socket 已连接，未连接时自动创建连接。"""
@@ -137,7 +152,32 @@ class MatrixTcpSender(Node):
             raise
 
         self._socket = sock
+        self._last_connection_error_log_time = 0.0
         self.get_logger().info(f'Connected to {self._host}:{self._port}')
+
+    def _log_connection_error(self, message: str) -> None:
+        """连接失败时节流打印，避免 F407 未接入时日志刷屏。"""
+
+        now = time.monotonic()
+        if now - self._last_connection_error_log_time < self._connection_log_interval:
+            return
+
+        self._last_connection_error_log_time = now
+        self.get_logger().warn(
+            f'{message}; will retry on next TrayMatrix frame'
+        )
+
+    def _log_send_status(self, frame_id: int, payload_size: int) -> None:
+        """已连接时定期打印发送状态。"""
+
+        now = time.monotonic()
+        if now - self._last_send_log_time < self._send_log_interval:
+            return
+
+        self._last_send_log_time = now
+        self.get_logger().info(
+            f'Sent frame_id={frame_id} bytes={payload_size} total_sent={self._sent_frame_count}'
+        )
 
     def _close_socket(self) -> None:
         """关闭当前 socket，下一帧到来时会重新连接。"""

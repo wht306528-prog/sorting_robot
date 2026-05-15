@@ -48,6 +48,8 @@ MIN_COLOR_MARGIN="${MIN_COLOR_MARGIN:-0.035}"
 START_TCP_SENDER="${START_TCP_SENDER:-true}"
 F407_HOST="${F407_HOST:-127.0.0.1}"
 F407_PORT="${F407_PORT:-9000}"
+TCP_CONNECTION_LOG_INTERVAL_SEC="${TCP_CONNECTION_LOG_INTERVAL_SEC:-3.0}"
+TCP_SEND_LOG_INTERVAL_SEC="${TCP_SEND_LOG_INTERVAL_SEC:-2.0}"
 
 usage() {
   cat <<'EOF'
@@ -86,6 +88,8 @@ usage() {
   ROI_RADIUS_RATIO=0.34
   F407_HOST=127.0.0.1
   F407_PORT=9000
+  TCP_CONNECTION_LOG_INTERVAL_SEC=3.0
+  TCP_SEND_LOG_INTERVAL_SEC=2.0
   USE_DEPTH=false|true
   USE_UNDISTORT=false|true
   REALSENSE_COLOR_PROFILE=1280x720x30
@@ -170,6 +174,7 @@ echo "realsense_color_profile目标值=$REALSENSE_COLOR_PROFILE realsense_depth_
 echo "use_depth=$USE_DEPTH depth_image_topic=$DEPTH_IMAGE_TOPIC"
 echo "use_undistort=$USE_UNDISTORT color_camera_info_topic=$COLOR_CAMERA_INFO_TOPIC"
 echo "expected_tray_count=$EXPECTED_TRAY_COUNT start_tcp_sender=$START_TCP_SENDER tcp=$F407_HOST:$F407_PORT"
+echo "tcp_connection_log_interval_sec=$TCP_CONNECTION_LOG_INTERVAL_SEC tcp_send_log_interval_sec=$TCP_SEND_LOG_INTERVAL_SEC"
 echo "geometry_method=$GEOMETRY_METHOD"
 echo "split_wide_large_dark_rects=$SPLIT_WIDE_LARGE_DARK_RECTS large_dark_max_single_width_ratio=$LARGE_DARK_MAX_SINGLE_WIDTH_RATIO relax_split_structure=$RELAX_SPLIT_STRUCTURE"
 echo "geometry_dark_threshold=$GEOMETRY_DARK_THRESHOLD geometry_projection_active_ratio=$GEOMETRY_PROJECTION_ACTIVE_RATIO geometry_projection_smooth_px=$GEOMETRY_PROJECTION_SMOOTH_PX"
@@ -227,4 +232,6 @@ exec ros2 launch sorting_bringup pingpong_demo.launch.py \
   min_color_margin:="$MIN_COLOR_MARGIN" \
   start_tcp_sender:="$START_TCP_SENDER" \
   f407_host:="$F407_HOST" \
-  f407_port:="$F407_PORT"
+  f407_port:="$F407_PORT" \
+  tcp_connection_log_interval_sec:="$TCP_CONNECTION_LOG_INTERVAL_SEC" \
+  tcp_send_log_interval_sec:="$TCP_SEND_LOG_INTERVAL_SEC"

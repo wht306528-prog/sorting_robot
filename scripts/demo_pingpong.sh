@@ -25,9 +25,9 @@ usage() {
   DEPTH_IMAGE_TOPIC=/your/aligned_depth/topic
   F407_HOST=192.168.1.50
   F407_PORT=9000
+  TCP_CONNECTION_LOG_INTERVAL_SEC=3.0
+  TCP_SEND_LOG_INTERVAL_SEC=2.0
   CHECK_F407=1
-  WAIT_F407=1
-  F407_WAIT_INTERVAL_SEC=2
   DEMO_DRY_RUN=1
 
 首次配置:
@@ -144,8 +144,8 @@ F407/TCP:
   host: $F407_HOST
   port: $F407_PORT
   check_f407: $CHECK_F407
-  wait_f407: $WAIT_F407
-  wait_interval_sec: $F407_WAIT_INTERVAL_SEC
+  connection_log_interval_sec: $TCP_CONNECTION_LOG_INTERVAL_SEC
+  send_log_interval_sec: $TCP_SEND_LOG_INTERVAL_SEC
 ========================================
 
 EOF
@@ -228,9 +228,9 @@ MIN_YELLOW_COMPONENT_RATIO="${MIN_YELLOW_COMPONENT_RATIO:-0.12}"
 MIN_COLOR_MARGIN="${MIN_COLOR_MARGIN:-0.035}"
 F407_HOST="${F407_HOST:-}"
 F407_PORT="${F407_PORT:-9000}"
+TCP_CONNECTION_LOG_INTERVAL_SEC="${TCP_CONNECTION_LOG_INTERVAL_SEC:-3.0}"
+TCP_SEND_LOG_INTERVAL_SEC="${TCP_SEND_LOG_INTERVAL_SEC:-2.0}"
 CHECK_F407="${CHECK_F407:-1}"
-WAIT_F407="${WAIT_F407:-1}"
-F407_WAIT_INTERVAL_SEC="${F407_WAIT_INTERVAL_SEC:-2}"
 
 # 基础文件检查先做完，避免 launch 起来后才发现工作区或脚本缺失。
 [[ -f "$ROS_SETUP" ]] || die "找不到 ROS2 环境: $ROS_SETUP"
@@ -338,6 +338,7 @@ print_startup_summary
 print_quick_commands
 
 export WORKSPACE_DIR ROS_SETUP EXPECTED_TRAY_COUNT PROCESS_EVERY_N_FRAMES F407_HOST F407_PORT
+export TCP_CONNECTION_LOG_INTERVAL_SEC TCP_SEND_LOG_INTERVAL_SEC
 export GEOMETRY_METHOD
 export SPLIT_WIDE_LARGE_DARK_RECTS LARGE_DARK_MAX_SINGLE_WIDTH_RATIO RELAX_SPLIT_STRUCTURE
 export GEOMETRY_DARK_THRESHOLD GEOMETRY_PROJECTION_ACTIVE_RATIO GEOMETRY_PROJECTION_SMOOTH_PX
@@ -368,22 +369,9 @@ if [[ "${DEMO_DRY_RUN:-0}" == "1" ]]; then
   exit 0
 fi
 
-# 正式演示前探测 F407/W5500 TCP 端口。默认等待，便于先 SSH 启动服务再换网线接 F407。
+# F407 连接不再阻塞视觉启动。matrix_tcp_sender 会持续重连，并在日志里报告连接状态。
 if [[ "$CHECK_F407" == "1" ]]; then
-  if [[ "$WAIT_F407" == "1" ]]; then
-    info "等待 F407/W5500 TCP 连接: $F407_HOST:$F407_PORT"
-    info "若当前通过电脑网线 SSH，可先启动服务，再换线到 F407；停止等待可执行: scripts/pingpong_service.sh stop"
-    until timeout 2 bash -c "cat < /dev/null > /dev/tcp/$F407_HOST/$F407_PORT" 2>/dev/null; do
-      warn "F407/W5500 暂不可达: $F407_HOST:$F407_PORT，${F407_WAIT_INTERVAL_SEC}s 后重试..."
-      sleep "$F407_WAIT_INTERVAL_SEC"
-    done
-  else
-    info "正在检查 F407/W5500 TCP 连接: $F407_HOST:$F407_PORT"
-    if ! timeout 2 bash -c "cat < /dev/null > /dev/tcp/$F407_HOST/$F407_PORT" 2>/dev/null; then
-      die "无法连接 F407/W5500: $F407_HOST:$F407_PORT。请检查 IP、端口、网线/网络、F407 程序是否已启动监听。"
-    fi
-  fi
-  info "F407/W5500 TCP 连接检查通过。"
+  info "将启动 F407/W5500 TCP 发送节点；若暂时连不上，视觉仍会运行，TCP 节点会持续重试。"
 fi
 
 # 最后交给低层脚本统一启动 launch，避免两处维护 ros2 launch 参数。
