@@ -26,6 +26,8 @@ usage() {
   F407_HOST=192.168.1.50
   F407_PORT=9000
   CHECK_F407=1
+  WAIT_F407=1
+  F407_WAIT_INTERVAL_SEC=2
   DEMO_DRY_RUN=1
 
 首次配置:
@@ -142,6 +144,8 @@ F407/TCP:
   host: $F407_HOST
   port: $F407_PORT
   check_f407: $CHECK_F407
+  wait_f407: $WAIT_F407
+  wait_interval_sec: $F407_WAIT_INTERVAL_SEC
 ========================================
 
 EOF
@@ -225,6 +229,8 @@ MIN_COLOR_MARGIN="${MIN_COLOR_MARGIN:-0.035}"
 F407_HOST="${F407_HOST:-}"
 F407_PORT="${F407_PORT:-9000}"
 CHECK_F407="${CHECK_F407:-1}"
+WAIT_F407="${WAIT_F407:-1}"
+F407_WAIT_INTERVAL_SEC="${F407_WAIT_INTERVAL_SEC:-2}"
 
 # 基础文件检查先做完，避免 launch 起来后才发现工作区或脚本缺失。
 [[ -f "$ROS_SETUP" ]] || die "找不到 ROS2 环境: $ROS_SETUP"
@@ -362,11 +368,20 @@ if [[ "${DEMO_DRY_RUN:-0}" == "1" ]]; then
   exit 0
 fi
 
-# 正式演示前先探测 F407/W5500 TCP 端口，地址错会在这里直接报错。
+# 正式演示前探测 F407/W5500 TCP 端口。默认等待，便于先 SSH 启动服务再换网线接 F407。
 if [[ "$CHECK_F407" == "1" ]]; then
-  info "正在检查 F407/W5500 TCP 连接: $F407_HOST:$F407_PORT"
-  if ! timeout 2 bash -c "cat < /dev/null > /dev/tcp/$F407_HOST/$F407_PORT" 2>/dev/null; then
-    die "无法连接 F407/W5500: $F407_HOST:$F407_PORT。请检查 IP、端口、网线/网络、F407 程序是否已启动监听。"
+  if [[ "$WAIT_F407" == "1" ]]; then
+    info "等待 F407/W5500 TCP 连接: $F407_HOST:$F407_PORT"
+    info "若当前通过电脑网线 SSH，可先启动服务，再换线到 F407；停止等待可执行: scripts/pingpong_service.sh stop"
+    until timeout 2 bash -c "cat < /dev/null > /dev/tcp/$F407_HOST/$F407_PORT" 2>/dev/null; do
+      warn "F407/W5500 暂不可达: $F407_HOST:$F407_PORT，${F407_WAIT_INTERVAL_SEC}s 后重试..."
+      sleep "$F407_WAIT_INTERVAL_SEC"
+    done
+  else
+    info "正在检查 F407/W5500 TCP 连接: $F407_HOST:$F407_PORT"
+    if ! timeout 2 bash -c "cat < /dev/null > /dev/tcp/$F407_HOST/$F407_PORT" 2>/dev/null; then
+      die "无法连接 F407/W5500: $F407_HOST:$F407_PORT。请检查 IP、端口、网线/网络、F407 程序是否已启动监听。"
+    fi
   fi
   info "F407/W5500 TCP 连接检查通过。"
 fi
